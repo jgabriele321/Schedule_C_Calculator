@@ -102,6 +102,8 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
   - Success Criteria: File uploads, transaction display, and calculations use backend data
 - [ ] **Task 6.3**: Add error handling and loading states in frontend
   - Success Criteria: Graceful handling of API errors, proper loading indicators
+- [ ] **Task 6.4**: Enhance UI/UX for better user experience
+  - Success Criteria: Improved visual design, added user-friendly features, reduced technical issues
 
 ### Phase 7: Production Deployment ⏳
 **Goal**: Prepare for production deployment
@@ -155,152 +157,211 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 
 ## Current Status / Progress Tracking
 
-**Current Phase**: Phase 3 ⏳ - Deduction Management 
-**Next Action**: Testing deduction endpoints  
+**Current Phase**: Phase 6.4 🔧 - UI/UX Enhancement & Polish
+**Last Milestone**: New V0 Frontend Successfully Integrated ✅
 **Progress**: 
-- ✅ Task 2.1: LLM-powered expense categorization system COMPLETED
-  - Successfully processed 52 transactions: Software (32), Professional Services (13), Marketing (13), Meals (9), Travel (4)
-  - OpenRouter API integration working with Claude 3.5 Sonnet
-  - IRS Schedule C line mapping (Lines 8-27) implemented
-- ✅ Task 2.2: Manual classification endpoint COMPLETED
-  - `/classify` endpoint tested and working
-  - Successfully updated PRX.ORG → Professional Services (Line 17)
-- 🔧 Task 2.3: Vendor rule system implemented (routes need debugging)
-  - Vendor rule functions created and database ready
-  - `/vendor-rule`, `/vendor-rules`, `/apply-rules` endpoints coded
+- ✅ Phase 6.1-6.3: Frontend-Backend Integration COMPLETED
+  - V0-generated professional dashboard successfully deployed
+  - API connectivity working (821 transactions loading)
+  - CSV transaction classification fixed (Amex Purple: 43 transactions corrected)
+  - All major JavaScript errors resolved (`transactions.filter` fixed)
 
-**Blockers**: None - core functionality working
-**Last Updated**: Template filling functionality completed successfully
+**SPRINT 1 PROGRESS**: Foundation & Layout Fix 🔧
+- ✅ **Task 1.1**: Fix CSS compilation issues COMPLETED
+  - Resolved `tailwindcss-animate` dependency issues
+  - Eliminated `border-border` utility class errors
+  - Frontend compiling without CSS errors
+- 🔧 **Task 1.2**: Layout improvements IN PROGRESS
+  - Implemented narrower sidebar (w-56 vs w-64)
+  - Added sticky headers for better navigation
+  - Improved table spacing and fixed-height containers
+  - Better responsive design with max-width constraints
 
-**MAJOR MILESTONE COMPLETED**: Schedule C Template Export System ✅
-- ✅ PDF Schedule C form filled with real transaction data
-- ✅ Excel P&L template populated with categorized expenses
-- ✅ Both files saved with timestamps in outputs/ directory
-- ✅ Files generated: `Schedule_C_Complete_20250611_224306.xlsx` (comprehensive Excel report)
-- ✅ Complete IRS Schedule C compliance with 757 expense transactions processed
-- ✅ Net business loss of $3,327.56 calculated and properly formatted
-- ✅ All expense categories mapped to correct IRS lines (8-27)
-- ✅ Home office deduction of $1,000 included
+**NEXT CRITICAL PRIORITY**: Sprint 2 - Transaction Toggle System 🎯
+- **User Feedback**: "Missing toggle button would make the biggest difference"
+- **Core Need**: Business/Personal expense selection for co-mingled credit card data
+- **Target**: Individual toggles + master "Include All" toggle
 
-**PHASE 2 COMPLETED**: CSS/Styling Issues Fixed ✅
+**Ready to Begin Sprint 2**: Moving to implement the critical toggle feature that transforms the user experience for small business owners with mixed personal/business expenses.
 
-✅ **Fixed border-border CSS compilation error**
-- Identified root cause: `@apply border-border` in globals.css was invalid
-- Replaced with proper CSS: `border-color: hsl(var(--border))`
-- Fixed all instances of `border-border` class in dashboard.tsx with `border-gray-600`
+**CURRENT CRITICAL ISSUE**: UI/UX Quality & User Experience 🚨
 
-✅ **Next.js Development Server Stable**
-- No more CSS compilation crashes 
-- Server running consistently on localhost:3000
-- All Tailwind classes now resolving properly
+**Problem Analysis:**
+- ✅ **Technical Integration**: Backend + Frontend working perfectly
+- ❌ **Visual Design**: UI described as "ugly as sin" 
+- ❌ **User Experience**: Missing key user-friendly features
+- ⚠️ **CSS Issues**: Still experiencing some styling problems (`border-border` errors persist)
 
-✅ **Frontend-Backend Integration Verified Working**
-- Main app: http://localhost:3000 (✅ Loading with real data)
-- Test page: http://localhost:3000/test (✅ Shows complete API integration)
-- Backend API: http://localhost:8080 (✅ Healthy with 821 transactions)
+**Assessment Questions for Planning:**
 
-### **Current Application Status**
-- **Backend**: Fully functional with real financial data from CSV imports
-- **Frontend**: Compiling successfully, rendering components, making API calls
-- **Data Flow**: Frontend successfully fetching and displaying backend data
-- **Integration**: Complete end-to-end connectivity established
+1. **Visual/Design Issues**:
+   - What specific aspects look "ugly"? (Colors, layout, typography, spacing, component design?)
+   - Are you looking for a more professional business/accounting software aesthetic?
+   - Do you have examples of tax software UIs you like? (TurboTax, FreeTaxUSA, etc.)
 
-**Ready for Phase 3**: Enhanced UI with complete functionality
+2. **Missing User-Friendly Features**:
+   - What key features are missing from the current UI?
+   - Are you looking for: Better onboarding, progress indicators, data validation, shortcuts, tooltips?
+   - Should we focus on: Upload experience, transaction review workflow, or export process?
 
----
+3. **Workflow & Usability**:
+   - What's the ideal user journey? (Upload → Review → Categorize → Export?)
+   - Are there pain points in the current flow that frustrate users?
+   - Do we need bulk editing, smart filters, or automation features?
 
-## **Executor's Feedback or Assistance Requests**
+4. **Technical Constraints**:
+   - Should we fix the existing V0 components or start fresh?
+   - Are you open to using a different UI library (Material-UI, Ant Design) or stick with shadcn/ui?
+   - Do we need mobile responsiveness or is this desktop-only?
 
-**PHASE 3 COMPLETED**: Enhanced UI with Complete Functionality ✅
+5. **Priority & Scope**:
+   - What's the timeline? Quick fixes or comprehensive redesign?
+   - Most important: Visual polish, feature additions, or workflow optimization?
+   - Are there specific competitors or designs you want to emulate?
 
-✅ **Comprehensive Dashboard Interface**
-- Enhanced header with branding, icons, and action buttons (Upload CSV, Export)
-- Professional tabbed navigation: Overview, Transactions, Categories, Export
-- Responsive design with modern UI components
+## Proposed UI/UX Enhancement Plan
 
-✅ **Four Main Application Sections**
-1. **Overview Tab**: Enhanced statistics dashboard with real-time data
-2. **Transactions Tab**: Sortable, filterable table with search functionality  
-3. **Categories Tab**: Visual breakdown with progress bars and vendor analysis
-4. **Export Tab**: Professional export interface with multiple format options
+### Phase 6.4: Smart UI/UX Improvement Strategy
 
-✅ **Advanced Components Created**
-- **TransactionTable**: Full-featured data table with search, sorting, filtering
-- **CategoryBreakdown**: Visual charts showing expense distribution and top vendors  
-- **ExportSection**: Professional export interface with PDF, Excel, CSV options
-- **Custom UI Components**: Tabs, Progress bars, enhanced Cards
+**Target User**: Small business owner/freelancer with co-mingled personal/business credit card expenses  
+**Goal**: Transform 4-hour tax prep into 30-minute task  
+**Design Inspiration**: Xero dark mode - professional, traditional business software  
+**Timeline**: Weeks available - slow, steady, methodical approach  
 
-✅ **Enhanced User Experience**
-- Professional branding with icons and consistent styling
-- Responsive layout that works on all screen sizes
-- Real-time data loading with proper loading states
-- Interactive elements with hover effects and transitions
+### 🎯 **Methodical Enhancement Roadmap**
 
-### **Current Application Features**
-- **Real Data Integration**: All components connect to Go backend with 821 transactions
-- **Search & Filter**: Find transactions by vendor, filter by type (expense/income)
-- **Data Visualization**: Category breakdowns with percentage calculations
-- **Export Ready**: Structured export system (currently shows demo alerts)
-- **Professional UI**: Modern design with proper spacing, colors, and typography
+#### Sprint 1: Foundation & Layout Fix (2-3 days) ✅
+**Goal**: Fix cramped layout, improve spacing, reduce scrolling
+- [ ] **Task 1.1**: Fix remaining CSS issues (`border-border`, `tailwindcss-animate`)
+- [ ] **Task 1.2**: Implement proper responsive grid layout (reduce scrolling)
+- [ ] **Task 1.3**: Add consistent spacing system (8px base unit)
+- [ ] **Task 1.4**: Create sticky headers/navigation for long lists
 
-**Phase 3 Complete**: The application now provides a complete, professional Schedule C tax preparation interface with full functionality.
+#### Sprint 2: Transaction Page Overhaul (3-4 days) 🎯
+**Goal**: Transform worst page into best feature
+- [ ] **Task 2.1**: Add toggle switches for each transaction (business/personal)
+- [ ] **Task 2.2**: Implement "Include All" master toggle at top
+- [ ] **Task 2.3**: Add amount-based sorting (expensive first)
+- [ ] **Task 2.4**: Create recurring transaction detection & bulk selection
+- [ ] **Task 2.5**: Visual indicators for categorization confidence
 
----
+#### Sprint 3: Smart Categorization System (3-4 days) 🔧
+**Goal**: LLM-powered categorization with easy manual override
+- [ ] **Task 3.1**: Display LLM confidence scores for categories
+- [ ] **Task 3.2**: Quick category override dropdown on each transaction
+- [ ] **Task 3.3**: Implement IRS-compliant category mapping
+- [ ] **Task 3.4**: Add category learning from user corrections
 
-## **Executor's Feedback or Assistance Requests**
+#### Sprint 4: Upload Experience Enhancement (2-3 days) 📤
+**Goal**: Clear guidance for CSV naming and upload
+- [ ] **Task 4.1**: Add upload instructions (name files by card)
+- [ ] **Task 4.2**: Multi-file drag & drop with progress indicators
+- [ ] **Task 4.3**: File validation with clear error messages
+- [ ] **Task 4.4**: Show uploaded files list with edit/delete options
 
-**PHASE 3 COMPLETE - MAJOR SUCCESS! 🎉**
+#### Sprint 5: Export & Desktop Packaging (3-4 days) 💾
+**Goal**: Professional export options & desktop app
+- [ ] **Task 5.1**: Implement filtered CSV export (business only)
+- [ ] **Task 5.2**: Create professional PDF export with summaries
+- [ ] **Task 5.3**: Package as Electron desktop app
+- [ ] **Task 5.4**: Create installers for Mac & Windows
 
-**Enhanced Application Features Now Live:**
+### 📊 **Detailed User Journey Implementation**
 
-1. **Professional Dashboard**: http://localhost:3000
-   - ✅ Modern tabbed interface (Overview, Transactions, Categories, Export)
-   - ✅ Enhanced header with branding and action buttons
-   - ✅ Real-time data from 821 imported transactions
+**1. Upload Phase** 📁
+- Clear instructions: "Name your CSV files by credit card (e.g., 'Chase_Business.csv')"
+- Drag & drop zone with visual feedback
+- Progress bars for processing
+- Success confirmation with transaction count
 
-2. **Advanced Functionality**:
-   - ✅ **Transaction Table**: Search vendors, sort by date/amount/vendor, filter by type
-   - ✅ **Category Analysis**: Visual breakdowns with progress bars and vendor insights
-   - ✅ **Export Interface**: Professional export options for PDF, Excel, CSV
-   - ✅ **Responsive Design**: Works perfectly on desktop, tablet, and mobile
+**2. Transaction Review** 🔍
+- **Master Toggle**: "Include All Business Expenses" button
+- **Individual Toggles**: Business/Personal switch on each row
+- **Smart Sorting**: By amount (high → low), date, vendor
+- **Recurring Detection**: "Select all OpenAI subscriptions" type actions
+- **Visual Hierarchy**: Clear separation between included/excluded
 
-3. **Technical Achievements**:
-   - ✅ All CSS compilation issues resolved
-   - ✅ Custom UI components built without external dependencies
-   - ✅ Full TypeScript integration with proper error handling
-   - ✅ Real backend data integration working flawlessly
+**3. Categorization** 📊
+- **LLM Pre-fill**: Show confidence level (e.g., "95% confident: Software")
+- **Quick Override**: Dropdown on hover/click
+- **IRS Categories**: Travel, Meals (50%), Office, Software, etc.
+- **Bulk Actions**: "Categorize all Uber as Travel"
 
-**The application is now a fully functional, professional Schedule C tax preparation tool!** 
+**4. Export** 📄
+- **Business Only**: Only export toggled transactions
+- **Format Options**: CSV for accountant, PDF for records
+- **Summary Page**: Total deductions by category
+- **Audit Trail**: Include categorization confidence
 
-**Next potential phases could include:**
-- Phase 4: Real export functionality (PDF generation, Excel templates)
-- Phase 5: LLM-powered expense categorization interface  
-- Phase 6: Upload interface for additional CSV files
-- Phase 7: Advanced reporting and tax form generation
+### 🎨 **Xero-Inspired Design System**
 
-**Ready for any specific enhancements or new features you'd like to implement!**
+**Colors** (Dark Mode):
+- Background: `#1a1a1a` (near black)
+- Surface: `#2d2d2d` (dark gray cards)
+- Primary: `#0078d4` (professional blue)
+- Success: `#107c10` (included/business)
+- Muted: `#6b6b6b` (excluded/personal)
+
+**Typography**:
+- Headers: Inter/System UI (clean, professional)
+- Body: 14px base, 1.5 line height
+- Monospace: Numbers/amounts
+
+**Components**:
+- Subtle shadows for depth
+- 4px border radius (not too rounded)
+- Clear hover states
+- Professional toggle switches
+
+### 🚀 **Implementation Priority**
+
+**Week 1**: Foundation + Transaction Page
+- Fix layout issues
+- Implement toggle system
+- Add sorting/filtering
+
+**Week 2**: Smart Features
+- Recurring transaction detection
+- Bulk selection tools
+- Category improvements
+
+**Week 3**: Polish + Desktop
+- Upload experience
+- Export functionality
+- Electron packaging
+
+**Success Metrics**:
+- 30-minute completion time (down from 4 hours)
+- Zero scrolling on main views
+- One-click bulk actions
+- Clear visual hierarchy
+
+## Executor's Feedback or Assistance Requests
+
+**Ready to Begin Sprint 1**: The plan is set for a methodical transformation into a professional Xero-style business expense tool. Starting with foundation fixes, then systematically improving each phase of the user journey.
+
+**First Actions**:
+1. Fix CSS compilation issues
+2. Implement proper spacing system
+3. Begin transaction page toggle implementation
+
+**No Blockers**: Clear vision, achievable sprints, risk-tolerant approach with Git safety net.
 
 ## Lessons
 
-### Technical Decisions Made
-1. **Architecture**: Next.js web app + Go backend (no Electron desktop app needed)
-2. **Database**: SQLite for persistent storage from the start
-3. **CSV Parsing**: Handle multiple bank formats, exclude payments, use OpenRouter/LLM if needed for complex parsing
-4. **Mileage Rate**: Use current 2024 rate of $0.67/mile as specified
-5. **Payment Exclusion**: Never categorize or include payment transactions in expenses
-6. **LLM Integration**: Use OpenRouter API for intelligent transaction categorization and Schedule C line mapping
-
-### Environment Variables Notes
-- Project will have `.env` file in root directory for configuration
-- Never create new `.env` - it exists and is accessible to application
-- Reference environment variables relative to project root
-
-### Sample Data Analysis
-- Chase CSV format: `Status,Date,Description,Debit,Credit`
-- Transactions include mix of business/personal expenses
-- Foreign transaction fees present
-- Recurring subscriptions easily identifiable (GOOGLE, NETFLIX, etc.)
-- Will need logic to distinguish business vs personal based on vendor and category
+- Include info useful for debugging in the program output.
+- Read the file before you try to edit it.
+- If there are vulnerabilities that appear in the terminal, run npm audit before proceeding
+- Always ask before using the -force git command
+- V0 generates functional code but requires UX refinement for professional applications
+- CSS compilation issues persist across different frontend implementations - need systematic approach to Tailwind config
+- API integration works well, but UI layer needs user-focused design iteration
+- Technical success doesn't guarantee user satisfaction - UX planning is critical
+- Xero-style UI: Dark mode with subtle depth, professional typography, clear visual hierarchy
+- Small business workflow: Upload → Toggle (business/personal) → Categorize → Export
+- Key insight: Co-mingled funds require individual transaction toggles, not just categorization
+- Recurring transactions: Critical time-saver for subscriptions and regular expenses
+- Desktop packaging: Electron for cross-platform .exe/.app distribution
 
 ---
 

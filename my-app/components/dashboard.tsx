@@ -581,41 +581,41 @@ export function Dashboard() {
           </div>
         </div>
 
-        <Card className="border-gray-700 bg-gray-800/50 backdrop-blur-sm overflow-hidden">
-          <CardContent className="p-0">
+        <Card className="border-gray-700 bg-gray-800/50 backdrop-blur-sm overflow-hidden h-[calc(100vh-280px)]">
+          <CardContent className="p-0 h-full flex flex-col">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin mr-2 text-blue-400" />
                 <span className="text-gray-300">Loading transactions...</span>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
+              <div className="overflow-auto flex-1">
+                <Table className="relative">
+                  <TableHeader className="sticky top-0 bg-gray-800 z-10">
                     <TableRow className="border-gray-700 hover:bg-transparent">
-                      <TableHead className="text-gray-400">Date</TableHead>
-                      <TableHead className="text-gray-400">Vendor</TableHead>
-                      <TableHead className="text-gray-400 text-right">Amount</TableHead>
-                      <TableHead className="text-gray-400">Card</TableHead>
-                      <TableHead className="text-gray-400">Category</TableHead>
-                      <TableHead className="text-gray-400">Type</TableHead>
-                      <TableHead className="text-gray-400 w-[50px]"></TableHead>
+                      <TableHead className="text-gray-400 py-3">Date</TableHead>
+                      <TableHead className="text-gray-400 py-3">Vendor</TableHead>
+                      <TableHead className="text-gray-400 text-right py-3">Amount</TableHead>
+                      <TableHead className="text-gray-400 py-3">Card</TableHead>
+                      <TableHead className="text-gray-400 py-3">Category</TableHead>
+                      <TableHead className="text-gray-400 py-3">Type</TableHead>
+                      <TableHead className="text-gray-400 w-[50px] py-3"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredTransactions.map((transaction) => (
                       <TableRow key={transaction.id} className="border-gray-700 hover:bg-gray-700/30">
-                        <TableCell className="font-medium text-gray-300">{formatDate(transaction.date)}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium text-gray-300 py-4">{formatDate(transaction.date)}</TableCell>
+                        <TableCell className="py-4">
                           <div>
                             <div className="font-medium text-gray-200">{transaction.vendor}</div>
-                            {transaction.purpose && <div className="text-sm text-gray-400">{transaction.purpose}</div>}
+                            {transaction.purpose && <div className="text-sm text-gray-400 mt-1">{transaction.purpose}</div>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-medium text-gray-200">
+                        <TableCell className="text-right font-medium text-gray-200 py-4">
                           {formatCurrency(transaction.amount)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-4">
                           <div className="flex items-center">
                             <CreditCard className="mr-2 h-4 w-4 text-gray-400" />
                             <Badge variant="outline" className="border-gray-600 text-gray-300">
@@ -623,13 +623,13 @@ export function Dashboard() {
                             </Badge>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-4">
                           <Badge className={getCategoryColor(transaction.category)}>{transaction.category}</Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-4">
                           <Badge className={getTypeColor(transaction.type)}>{transaction.type}</Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-4">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -702,7 +702,6 @@ export function Dashboard() {
                   <Progress
                     value={Math.min((amount / (summary.summary.total_expenses || 1)) * 100, 100)}
                     className="mt-2 bg-gray-700"
-                    indicatorClassName="bg-blue-500"
                   />
                 </CardContent>
               </Card>
@@ -802,107 +801,105 @@ export function Dashboard() {
 
   return (
     <div className="flex h-screen bg-gray-900">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
-          <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
-              <Calculator className="h-6 w-6 text-white" />
+      {/* Sidebar - Made narrower and collapsible */}
+      <div className="w-56 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
+        {/* Logo - More compact */}
+        <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
+          <div className="flex items-center space-x-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
+              <Calculator className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-100">Schedule C</h2>
-              <p className="text-sm text-gray-400">Assistant</p>
+              <h2 className="text-base font-semibold text-gray-100">Schedule C</h2>
+              <p className="text-xs text-gray-400">Assistant</p>
             </div>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        {/* Navigation - More compact */}
+        <nav className="flex-1 p-3 space-y-1">
           <button
             onClick={() => setActiveTab("upload")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "upload"
                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
                 : "text-gray-300 hover:bg-gray-700/50"
             }`}
           >
-            <Upload className="h-5 w-5" />
-            <span className="font-medium">Upload</span>
-            {activeTab === "upload" && <ChevronRight className="h-4 w-4 ml-auto" />}
+            <Upload className="h-4 w-4" />
+            <span className="text-sm font-medium">Upload</span>
+            {activeTab === "upload" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
           <button
             onClick={() => setActiveTab("overview")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "overview"
                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
                 : "text-gray-300 hover:bg-gray-700/50"
             }`}
           >
-            <BarChart3 className="h-5 w-5" />
-            <span className="font-medium">Overview</span>
-            {activeTab === "overview" && <ChevronRight className="h-4 w-4 ml-auto" />}
+            <BarChart3 className="h-4 w-4" />
+            <span className="text-sm font-medium">Overview</span>
+            {activeTab === "overview" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
           <button
             onClick={() => setActiveTab("transactions")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "transactions"
                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
                 : "text-gray-300 hover:bg-gray-700/50"
             }`}
           >
-            <Receipt className="h-5 w-5" />
-            <span className="font-medium">Transactions</span>
-            {activeTab === "transactions" && <ChevronRight className="h-4 w-4 ml-auto" />}
+            <Receipt className="h-4 w-4" />
+            <span className="text-sm font-medium">Transactions</span>
+            {activeTab === "transactions" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
           <button
             onClick={() => setActiveTab("categories")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "categories"
                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
                 : "text-gray-300 hover:bg-gray-700/50"
             }`}
           >
-            <Tags className="h-5 w-5" />
-            <span className="font-medium">Categories</span>
-            {activeTab === "categories" && <ChevronRight className="h-4 w-4 ml-auto" />}
+            <Tags className="h-4 w-4" />
+            <span className="text-sm font-medium">Categories</span>
+            {activeTab === "categories" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
           <button
             onClick={() => setActiveTab("export")}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "export"
                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
                 : "text-gray-300 hover:bg-gray-700/50"
             }`}
           >
-            <Download className="h-5 w-5" />
-            <span className="font-medium">Export</span>
-            {activeTab === "export" && <ChevronRight className="h-4 w-4 ml-auto" />}
+            <Download className="h-4 w-4" />
+            <span className="text-sm font-medium">Export</span>
+            {activeTab === "export" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-700 bg-gray-800/80">
-          
-        </div>
+        {/* Footer - Removed to save space */}
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - Better spacing */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b border-gray-700 bg-gray-800 px-6 flex items-center">
+        {/* Sticky Header */}
+        <header className="h-14 border-b border-gray-700 bg-gray-800 px-8 flex items-center sticky top-0 z-10">
           <div>
-            <h1 className="text-xl font-semibold text-gray-100">
+            <h1 className="text-lg font-semibold text-gray-100">
               {activeTab === "upload" && "Upload CSV Files"}
               {activeTab === "overview" && "Overview"}
               {activeTab === "transactions" && "Transactions"}
               {activeTab === "categories" && "Categories"}
               {activeTab === "export" && "Export"}
             </h1>
-            <p className="text-sm text-gray-400">
+            <p className="text-xs text-gray-400">
               {activeTab === "upload" && "Import your bank statements and credit card transactions"}
               {activeTab === "overview" && "Financial summary and key metrics"}
               {activeTab === "transactions" && "Review and manage your transactions"}
@@ -912,7 +909,12 @@ export function Dashboard() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6 bg-gradient-to-b from-gray-900 to-gray-950">{renderContent()}</main>
+        {/* Main content with better padding */}
+        <main className="flex-1 overflow-auto px-8 py-6 bg-gradient-to-b from-gray-900 to-gray-950">
+          <div className="max-w-7xl mx-auto">
+            {renderContent()}
+          </div>
+        </main>
       </div>
     </div>
   )

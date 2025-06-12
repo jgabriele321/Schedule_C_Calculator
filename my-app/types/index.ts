@@ -10,6 +10,7 @@ export interface Transaction {
   type: "expense" | "income"
   source_file: string
   schedule_c_line: number
+  is_business: boolean // User toggle for business vs personal expense
 }
 
 export interface Summary {

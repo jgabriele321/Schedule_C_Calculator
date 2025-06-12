@@ -35,6 +35,7 @@ type Transaction struct {
 	Type          string    `json:"type" db:"type"` // "income", "expense", "refund", "uncategorized"
 	SourceFile    string    `json:"source_file" db:"source_file"`
 	ScheduleCLine int       `json:"schedule_c_line" db:"schedule_c_line"` // IRS Schedule C line number
+	IsBusiness    bool      `json:"is_business" db:"is_business"`         // User toggle for business vs personal
 }
 
 type CSVFile struct {
@@ -155,6 +156,8 @@ func main() {
 	r.Get("/transactions", getTransactions)
 	r.Post("/categorize", categorizeTransactions)
 	r.Post("/classify", classifyTransaction)
+	r.Post("/toggle-business", toggleBusinessStatus)
+	r.Post("/toggle-all-business", toggleAllBusinessStatus)
 	r.Post("/vendor-rule", createVendorRule)
 	r.Get("/vendor-rules", getVendorRules)
 	r.Post("/apply-rules", applyVendorRules)
@@ -247,6 +250,12 @@ func createTables() error {
 	_, err := db.Exec("ALTER TABLE transactions ADD COLUMN schedule_c_line INTEGER DEFAULT 0")
 	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 		log.Printf("Warning: Could not add schedule_c_line column: %v", err)
+	}
+
+	// Add is_business column for user toggle feature
+	_, err = db.Exec("ALTER TABLE transactions ADD COLUMN is_business BOOLEAN DEFAULT FALSE")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		log.Printf("Warning: Could not add is_business column: %v", err)
 	}
 
 	fmt.Println("📋 Database tables created successfully")
@@ -1697,29 +1706,126 @@ func getScheduleCSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 func fixIncomeTransactions(w http.ResponseWriter, r *http.Request) {
-	// Update all transactions marked as "income" to "expense" since they're misclassified
-	updateQuery := `
-		UPDATE transactions 
-		SET type = 'expense',
-		    expensable = true
-		WHERE type = 'income'
-	`
-
-	result, err := db.Exec(updateQuery)
+	// Count current income transactions
+	var incomeCount int
+	err := db.QueryRow("SELECT COUNT(*) FROM transactions WHERE type = 'income'").Scan(&incomeCount)
 	if err != nil {
-		log.Printf("Failed to fix income transactions: %v", err)
-		http.Error(w, "Failed to fix income transactions", http.StatusInternalServerError)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Update all income transactions to expense
+	result, err := db.Exec("UPDATE transactions SET type = 'expense', expensable = (amount > 0) WHERE type = 'income'")
+	if err != nil {
+		http.Error(w, "Failed to update transactions", http.StatusInternalServerError)
 		return
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 
-	log.Printf("🔧 Fixed %d misclassified income transactions → expense", rowsAffected)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":            true,
+		"message":            "Fixed income transactions",
+		"original_count":     incomeCount,
+		"transactions_fixed": rowsAffected,
+	})
+}
+
+// Toggle business status for individual transaction
+func toggleBusinessStatus(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TransactionID string `json:"transaction_id"`
+		IsBusiness    bool   `json:"is_business"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.TransactionID == "" {
+		http.Error(w, "transaction_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Update the transaction
+	_, err := db.Exec("UPDATE transactions SET is_business = ? WHERE id = ?", req.IsBusiness, req.TransactionID)
+	if err != nil {
+		http.Error(w, "Failed to update transaction", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":        true,
+		"message":        "Transaction business status updated",
+		"transaction_id": req.TransactionID,
+		"is_business":    req.IsBusiness,
+	})
+}
+
+// Toggle business status for all transactions (master toggle)
+func toggleAllBusinessStatus(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IsBusiness bool     `json:"is_business"`
+		CardFilter string   `json:"card_filter,omitempty"` // Optional: filter by specific card
+		TypeFilter string   `json:"type_filter,omitempty"` // Optional: filter by expense/income
+		IDList     []string `json:"id_list,omitempty"`     // Optional: specific transaction IDs
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	var query string
+	var args []interface{}
+
+	if len(req.IDList) > 0 {
+		// Update specific transactions by ID list
+		placeholders := make([]string, len(req.IDList))
+		for i, id := range req.IDList {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		query = fmt.Sprintf("UPDATE transactions SET is_business = ? WHERE id IN (%s)", strings.Join(placeholders, ","))
+		args = append([]interface{}{req.IsBusiness}, args...)
+	} else {
+		// Update all transactions with optional filters
+		query = "UPDATE transactions SET is_business = ?"
+		args = append(args, req.IsBusiness)
+
+		var conditions []string
+
+		if req.CardFilter != "" {
+			conditions = append(conditions, "card = ?")
+			args = append(args, req.CardFilter)
+		}
+
+		if req.TypeFilter != "" {
+			conditions = append(conditions, "type = ?")
+			args = append(args, req.TypeFilter)
+		}
+
+		if len(conditions) > 0 {
+			query += " WHERE " + strings.Join(conditions, " AND ")
+		}
+	}
+
+	result, err := db.Exec(query, args...)
+	if err != nil {
+		http.Error(w, "Failed to update transactions", http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":              true,
-		"message":              fmt.Sprintf("Fixed %d misclassified income transactions", rowsAffected),
+		"message":              "Bulk business status updated",
 		"transactions_updated": rowsAffected,
+		"is_business":          req.IsBusiness,
 	})
 }
