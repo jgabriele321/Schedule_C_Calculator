@@ -142,7 +142,7 @@ func main() {
 
 	// CORS for frontend communication
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"}, // Next.js default port
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001"}, // Next.js ports
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},

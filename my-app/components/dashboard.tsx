@@ -22,6 +22,8 @@ import {
   X,
   Loader2,
   ChevronRight,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
 import { api } from "@/lib/api"
 import { formatCurrency, formatDate, formatFileSize, getCategoryColor, getTypeColor } from "@/lib/utils"
 import type { Transaction, Summary, UploadedFile } from "@/types"
@@ -59,6 +62,14 @@ export function Dashboard() {
   const [selectedType, setSelectedType] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
+  // Sorting state
+  const [sortBy, setSortBy] = useState<"amount" | "date" | "vendor">("amount")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc") // Default: highest amounts first
+
+  // Business toggle state
+  const [allBusinessSelected, setAllBusinessSelected] = useState(false)
+  const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+
   useEffect(() => {
     // Load saved tab from localStorage
     const savedTab = localStorage.getItem("scheduleC-activeTab")
@@ -67,7 +78,7 @@ export function Dashboard() {
     }
 
     checkForExistingData()
-  }, [])
+  }, [hasData])
 
   useEffect(() => {
     // Save tab to localStorage
@@ -82,7 +93,7 @@ export function Dashboard() {
         setSummary(summaryData)
         setActiveTab("overview")
       }
-    } catch (err) {
+    } catch {
       // No data exists, stay on upload tab
       setHasData(false)
     }
@@ -195,19 +206,104 @@ export function Dashboard() {
     }
   }
 
-  const filteredTransactions = (transactions || []).filter((transaction) => {
-    const matchesSearch =
-      transaction.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.purpose.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCard = selectedCard === "all" || transaction.card === selectedCard
-    const matchesType = selectedType === "all" || transaction.type === selectedType
-    const matchesCategory = selectedCategory === "all" || transaction.category === selectedCategory
+  const filteredTransactions = (transactions || [])
+    .filter((transaction) => {
+      const matchesSearch =
+        transaction.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.purpose.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesCard = selectedCard === "all" || transaction.card === selectedCard
+      const matchesType = selectedType === "all" || transaction.type === selectedType
+      const matchesCategory = selectedCategory === "all" || transaction.category === selectedCategory
 
-    return matchesSearch && matchesCard && matchesType && matchesCategory
-  })
+      return matchesSearch && matchesCard && matchesType && matchesCategory
+    })
+    .sort((a, b) => {
+      let comparison = 0
+      
+      switch (sortBy) {
+        case "amount":
+          comparison = Math.abs(a.amount) - Math.abs(b.amount)
+          break
+        case "date":
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
+          break
+        case "vendor":
+          comparison = a.vendor.localeCompare(b.vendor)
+          break
+        default:
+          comparison = 0
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison
+    })
 
   const uniqueCards = Array.from(new Set((transactions || []).map((t) => t.card)))
   const uniqueCategories = Array.from(new Set((transactions || []).map((t) => t.category)))
+
+  // Update master toggle state based on filtered transactions (optimized)
+  useEffect(() => {
+    if (filteredTransactions.length > 0) {
+      const businessCount = filteredTransactions.filter(t => t.is_business).length
+      // Master toggle is "on" if ALL visible transactions are business
+      setAllBusinessSelected(businessCount === filteredTransactions.length)
+    } else {
+      setAllBusinessSelected(false)
+    }
+  }, [filteredTransactions])
+
+  // Toggle handler functions (optimized for performance)
+  const handleToggleBusiness = async (transactionId: string, isBusiness: boolean) => {
+    // Immediate optimistic update for better UX
+    setTransactions(prev => 
+      prev.map(t => 
+        t.id === transactionId ? { ...t, is_business: isBusiness } : t
+      )
+    )
+    
+    try {
+      setToggleLoading(transactionId)
+      await api.toggleBusiness(transactionId, isBusiness)
+    } catch (error) {
+      console.error("Failed to toggle business status:", error)
+      // Revert on error
+      setTransactions(prev => 
+        prev.map(t => 
+          t.id === transactionId ? { ...t, is_business: !isBusiness } : t
+        )
+      )
+    } finally {
+      setToggleLoading(null)
+    }
+  }
+
+  const handleToggleAllBusiness = async () => {
+    const filteredIds = filteredTransactions.map(t => t.id)
+    const newState = !allBusinessSelected
+    
+    // Immediate optimistic update
+    setTransactions(prev => 
+      prev.map(t => 
+        filteredIds.includes(t.id) ? { ...t, is_business: newState } : t
+      )
+    )
+    setAllBusinessSelected(newState)
+    
+    try {
+      setToggleLoading("all")
+      await api.toggleAllBusiness(newState, { idList: filteredIds })
+    } catch (error) {
+      console.error("Failed to toggle all business status:", error)
+      // Revert on error
+      setTransactions(prev => 
+        prev.map(t => 
+          filteredIds.includes(t.id) ? { ...t, is_business: !newState } : t
+        )
+      )
+      setAllBusinessSelected(!newState)
+    } finally {
+      setToggleLoading(null)
+    }
+  }
 
   const renderUpload = () => (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -544,10 +640,10 @@ export function Dashboard() {
               <SelectTrigger className="w-[140px] bg-gray-800 border-gray-700 text-gray-200">
                 <SelectValue placeholder="All Cards" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
-                <SelectItem value="all">All Cards</SelectItem>
+              <SelectContent className="bg-blue-900 border-blue-800 text-white [&>*]:bg-blue-900 [&>*]:text-white">
+                <SelectItem value="all" className="focus:bg-blue-800 focus:text-white">All Cards</SelectItem>
                 {uniqueCards.map((card) => (
-                  <SelectItem key={card} value={card}>
+                  <SelectItem key={card} value={card} className="focus:bg-blue-800 focus:text-white">
                     {card}
                   </SelectItem>
                 ))}
@@ -558,10 +654,10 @@ export function Dashboard() {
               <SelectTrigger className="w-[120px] bg-gray-800 border-gray-700 text-gray-200">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="expense">Expenses</SelectItem>
-                <SelectItem value="income">Income</SelectItem>
+              <SelectContent className="bg-blue-900 border-blue-800 text-white [&>*]:bg-blue-900 [&>*]:text-white">
+                <SelectItem value="all" className="focus:bg-blue-800 focus:text-white">All Types</SelectItem>
+                <SelectItem value="expense" className="focus:bg-blue-800 focus:text-white">Expenses</SelectItem>
+                <SelectItem value="income" className="focus:bg-blue-800 focus:text-white">Income</SelectItem>
               </SelectContent>
             </Select>
 
@@ -569,13 +665,31 @@ export function Dashboard() {
               <SelectTrigger className="w-[140px] bg-gray-800 border-gray-700 text-gray-200">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
-                <SelectItem value="all">All Categories</SelectItem>
+              <SelectContent className="bg-blue-900 border-blue-800 text-white [&>*]:bg-blue-900 [&>*]:text-white">
+                <SelectItem value="all" className="focus:bg-blue-800 focus:text-white">All Categories</SelectItem>
                 {uniqueCategories.map((category) => (
-                  <SelectItem key={category} value={category}>
+                  <SelectItem key={category} value={category} className="focus:bg-blue-800 focus:text-white">
                     {category}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={`${sortBy}-${sortOrder}`} onValueChange={(value) => {
+              const [newSortBy, newSortOrder] = value.split('-') as ["amount" | "date" | "vendor", "asc" | "desc"]
+              setSortBy(newSortBy)
+              setSortOrder(newSortOrder)
+            }}>
+              <SelectTrigger className="w-[160px] bg-gray-800 border-gray-700 text-gray-200">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent className="bg-blue-900 border-blue-800 text-white [&>*]:bg-blue-900 [&>*]:text-white">
+                <SelectItem value="amount-desc" className="focus:bg-blue-800 focus:text-white">Amount (High → Low)</SelectItem>
+                <SelectItem value="amount-asc" className="focus:bg-blue-800 focus:text-white">Amount (Low → High)</SelectItem>
+                <SelectItem value="date-desc" className="focus:bg-blue-800 focus:text-white">Date (Newest)</SelectItem>
+                <SelectItem value="date-asc" className="focus:bg-blue-800 focus:text-white">Date (Oldest)</SelectItem>
+                <SelectItem value="vendor-asc" className="focus:bg-blue-800 focus:text-white">Vendor (A → Z)</SelectItem>
+                <SelectItem value="vendor-desc" className="focus:bg-blue-800 focus:text-white">Vendor (Z → A)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -591,14 +705,45 @@ export function Dashboard() {
             ) : (
               <div className="overflow-auto flex-1">
                 <Table className="relative">
-                  <TableHeader className="sticky top-0 bg-gray-800 z-10">
-                    <TableRow className="border-gray-700 hover:bg-transparent">
-                      <TableHead className="text-gray-400 py-3">Date</TableHead>
-                      <TableHead className="text-gray-400 py-3">Vendor</TableHead>
-                      <TableHead className="text-gray-400 text-right py-3">Amount</TableHead>
+                  <TableHeader className="sticky top-0 bg-gray-700/50 z-10">
+                    <TableRow className="border-gray-600">
+                      <TableHead className="text-gray-400 py-3">
+                        <div className="flex items-center space-x-1">
+                          <span>Date</span>
+                          {sortBy === "date" && (
+                            sortOrder === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-gray-400 py-3">
+                        <div className="flex items-center space-x-1">
+                          <span>Vendor</span>
+                          {sortBy === "vendor" && (
+                            sortOrder === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-gray-400 text-right py-3">
+                        <div className="flex items-center justify-end space-x-1">
+                          <span>Amount</span>
+                          {sortBy === "amount" && (
+                            sortOrder === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+                          )}
+                        </div>
+                      </TableHead>
                       <TableHead className="text-gray-400 py-3">Card</TableHead>
                       <TableHead className="text-gray-400 py-3">Category</TableHead>
                       <TableHead className="text-gray-400 py-3">Type</TableHead>
+                      <TableHead className="text-gray-400 py-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs">Mark All</span>
+                          <Checkbox
+                            checked={allBusinessSelected}
+                            onCheckedChange={() => handleToggleAllBusiness()}
+                            disabled={toggleLoading === "all"}
+                          />
+                        </div>
+                      </TableHead>
                       <TableHead className="text-gray-400 w-[50px] py-3"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -606,10 +751,10 @@ export function Dashboard() {
                     {filteredTransactions.map((transaction) => (
                       <TableRow key={transaction.id} className="border-gray-700 hover:bg-gray-700/30">
                         <TableCell className="font-medium text-gray-300 py-4">{formatDate(transaction.date)}</TableCell>
-                        <TableCell className="py-4">
-                          <div>
-                            <div className="font-medium text-gray-200">{transaction.vendor}</div>
-                            {transaction.purpose && <div className="text-sm text-gray-400 mt-1">{transaction.purpose}</div>}
+                        <TableCell className="py-4 max-w-[200px]">
+                          <div className="truncate">
+                            <div className="font-medium text-gray-200 truncate">{transaction.vendor}</div>
+                            {transaction.purpose && <div className="text-sm text-gray-400 mt-1 truncate">{transaction.purpose}</div>}
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-medium text-gray-200 py-4">
@@ -630,6 +775,15 @@ export function Dashboard() {
                           <Badge className={getTypeColor(transaction.type)}>{transaction.type}</Badge>
                         </TableCell>
                         <TableCell className="py-4">
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={transaction.is_business === true}
+                              onCheckedChange={(checked: boolean) => handleToggleBusiness(transaction.id, checked)}
+                              disabled={toggleLoading === transaction.id}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -640,9 +794,9 @@ export function Dashboard() {
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700 text-gray-200">
-                              <DropdownMenuItem className="hover:bg-gray-700 focus:bg-gray-700">Edit</DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-400 hover:bg-gray-700 focus:bg-gray-700">
+                            <DropdownMenuContent align="end" className="bg-white border-gray-200 text-gray-900">
+                              <DropdownMenuItem className="hover:bg-gray-100 focus:bg-gray-100">Edit</DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600 hover:bg-gray-100 focus:bg-gray-100">
                                 Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>

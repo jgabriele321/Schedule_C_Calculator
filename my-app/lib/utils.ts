@@ -29,7 +29,7 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function getCategoryColor(category: string): string {
-  const colors = {
+  const colors: Record<string, string> = {
     advertising: "bg-blue-900/60 text-blue-300",
     "car-expenses": "bg-green-900/60 text-green-300",
     equipment: "bg-purple-900/60 text-purple-300",
