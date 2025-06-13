@@ -292,7 +292,7 @@ export function Dashboard() {
     setIsCalculating(true)
     try {
       // Load all transactions to get accurate business/personal split
-      const allTransactionsData = await api.get("/transactions?pageSize=10000")
+      const allTransactionsData = await api.get("/transactions?unlimited=true")
       const allTransactions = allTransactionsData.transactions || []
       
       const businessTransactions = allTransactions.filter((t: any) => t.is_business)
@@ -329,7 +329,7 @@ export function Dashboard() {
   // Check overall database business status for master toggle
   const checkOverallBusinessStatus = async () => {
     try {
-      const allTransactionsData = await api.get("/transactions?pageSize=10000")
+      const allTransactionsData = await api.get("/transactions?unlimited=true")
       const allTransactions = allTransactionsData.transactions || []
       
       if (allTransactions.length > 0) {

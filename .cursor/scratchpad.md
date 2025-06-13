@@ -249,32 +249,93 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 - ❌ **User Experience**: Missing key user-friendly features
 - ⚠️ **CSS Issues**: Still experiencing some styling problems (`border-border` errors persist)
 
-**Assessment Questions for Planning:**
+## 🚨 **NEW CRITICAL ISSUE IDENTIFIED: Overview Calculation Bug**
 
-1. **Visual/Design Issues**:
-   - What specific aspects look "ugly"? (Colors, layout, typography, spacing, component design?)
-   - Are you looking for a more professional business/accounting software aesthetic?
-   - Do you have examples of tax software UIs you like? (TurboTax, FreeTaxUSA, etc.)
+**Problem**: Overview page showing only 50 transactions instead of all 907 in database
+**User Report**: "I have every item checked in the database and this is what overview page says... it's only taking 50 transactions for some reason"
 
-2. **Missing User-Friendly Features**:
-   - What key features are missing from the current UI?
-   - Are you looking for: Better onboarding, progress indicators, data validation, shortcuts, tooltips?
-   - Should we focus on: Upload experience, transaction review workflow, or export process?
+**Symptoms**:
+- Business Expenses: $3,215.35 (50 business transactions)
+- Personal Expenses: $0.00 (0 personal transactions) 
+- Total Transactions: 50 (should be 907)
+- All transactions marked as business via master toggle
 
-3. **Workflow & Usability**:
-   - What's the ideal user journey? (Upload → Review → Categorize → Export?)
-   - Are there pain points in the current flow that frustrate users?
-   - Do we need bulk editing, smart filters, or automation features?
+**Initial Analysis**:
+1. **Pagination Issue**: Overview calculation may be using paginated data instead of full dataset
+2. **API Call Problem**: `calculateBusinessSummary()` function might be calling wrong endpoint
+3. **Data Filtering**: Could be applying unintended filters that limit results to 50
+4. **Default Page Size**: Backend might be defaulting to pageSize=50 instead of getting all data
 
-4. **Technical Constraints**:
-   - Should we fix the existing V0 components or start fresh?
-   - Are you open to using a different UI library (Material-UI, Ant Design) or stick with shadcn/ui?
-   - Do we need mobile responsiveness or is this desktop-only?
+**Investigation Required**:
+- Check `calculateBusinessSummary()` function in dashboard.tsx
+- Verify API endpoint being called (should use pageSize=10000 or similar)
+- Confirm backend is returning all 907 transactions
+- Test if pagination parameters are interfering with overview calculations
 
-5. **Priority & Scope**:
-   - What's the timeline? Quick fixes or comprehensive redesign?
-   - Most important: Visual polish, feature additions, or workflow optimization?
-   - Are there specific competitors or designs you want to emulate?
+**Priority**: HIGH - This breaks the core business calculation functionality
+
+## 🔍 **ROOT CAUSE IDENTIFIED: Backend PageSize Limit Bug**
+
+**Investigation Results**:
+✅ Frontend `calculateBusinessSummary()` function is correct - calls `/transactions?pageSize=10000`
+✅ API call structure is proper
+❌ **BACKEND BUG FOUND**: Line 777 in `backend/main.go` has hardcoded limit
+
+**Root Cause**:
+```go
+if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
+    pageSize = ps  // Maximum pageSize is capped at 200!
+}
+```
+
+**What's Happening**:
+1. Frontend requests `pageSize=10000` to get all transactions
+2. Backend sees `10000 > 200` and ignores the parameter
+3. Backend defaults to `pageSize = 50` 
+4. Only 50 transactions returned instead of all 907
+5. Overview calculations are based on incomplete data
+
+**Additional Issues**:
+- Response uses `"total"` field but frontend may expect `"total_count"`
+- No error indication that pageSize was capped
+
+**Proposed Solution**:
+1. **Immediate Fix**: Remove or increase the 200 limit for pageSize
+2. **Better Fix**: Add special handling for overview calculations (unlimited pageSize)
+3. **Best Fix**: Create dedicated `/transactions/all` endpoint for overview calculations
+
+**Priority**: CRITICAL - This completely breaks business expense calculations
+
+## ✅ **EXECUTOR PROGRESS: Smart Fix Implemented Successfully**
+
+**Task Completed**: Added `unlimited=true` parameter to bypass pagination limits
+
+**Changes Made**:
+1. **Backend Fix** (`backend/main.go`):
+   - Added `unlimited := r.URL.Query().Get("unlimited")` parameter parsing
+   - When `unlimited=true`, sets `pageSize = 999999` (effectively unlimited)
+   - Maintains existing pagination logic for normal UI operations
+   - Preserves API backward compatibility
+
+2. **Frontend Update** (`my-app/components/dashboard.tsx`):
+   - Updated `calculateBusinessSummary()` to use `/transactions?unlimited=true`
+   - Updated `checkOverallBusinessStatus()` to use `/transactions?unlimited=true`
+   - Removed dependency on `pageSize=10000` workaround
+
+**Test Results**:
+✅ **Unlimited Parameter**: Returns all 907 transactions (304k response)
+✅ **Regular Pagination**: Still works correctly (10 transactions for pageSize=10)
+✅ **Backend Health**: Server running with 907 transactions confirmed
+✅ **Frontend**: Running on port 3002
+✅ **API Compatibility**: Existing pagination unchanged
+
+**Next Steps**:
+1. Test overview calculations in frontend UI
+2. Verify business expense totals show all 907 transactions
+3. Confirm master checkbox reflects true database state
+4. Commit and push the fix
+
+**Status**: READY FOR USER TESTING - Overview calculations should now be accurate!
 
 ## Proposed UI/UX Enhancement Plan
 

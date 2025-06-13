@@ -769,17 +769,24 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	card := r.URL.Query().Get("card")
 	category := r.URL.Query().Get("category")
 	search := r.URL.Query().Get("search")
+	unlimited := r.URL.Query().Get("unlimited")
 
 	// Pagination params
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("pageSize")
 	page := 1
 	pageSize := 50
-	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-		page = p
-	}
-	if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
-		pageSize = ps
+
+	// Handle unlimited parameter for overview calculations
+	if unlimited == "true" {
+		pageSize = 999999 // Effectively unlimited
+	} else {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
+			pageSize = ps
+		}
 	}
 	offset := (page - 1) * pageSize
 
