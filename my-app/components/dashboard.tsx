@@ -22,6 +22,7 @@ import {
   ChevronRight,
   ArrowUp,
   ArrowDown,
+  RefreshCw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -78,6 +79,11 @@ export function Dashboard() {
 
   // Toggle loading state
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+
+  // Recurring transactions state
+  const [recurringTransactions, setRecurringTransactions] = useState<any[]>([])
+  const [recurringLoading, setRecurringLoading] = useState(false)
+  const [recurringToggleLoading, setRecurringToggleLoading] = useState<string | null>(null)
 
   useEffect(() => {
     // Load saved tab from localStorage
@@ -256,6 +262,13 @@ export function Dashboard() {
     }
   }, [searchTerm, selectedCard, selectedType, selectedCategory, hasData, activeTab])
 
+  // Load recurring transactions when recurring tab is active
+  useEffect(() => {
+    if (hasData && activeTab === "recurring") {
+      loadRecurringTransactions()
+    }
+  }, [hasData, activeTab])
+
   const filteredTransactions = transactions
 
   const uniqueCards = Array.from(new Set((transactions || []).map((t) => t.card)))
@@ -329,19 +342,15 @@ export function Dashboard() {
   // Check overall database business status for master toggle
   const checkOverallBusinessStatus = async () => {
     try {
+      // Load all transactions to check overall business status
       const allTransactionsData = await api.get("/transactions?unlimited=true")
       const allTransactions = allTransactionsData.transactions || []
       
-      if (allTransactions.length > 0) {
-        const businessCount = allTransactions.filter((t: any) => t.is_business).length
-        // Master toggle is "on" if ALL transactions in database are business
-        setAllBusinessSelected(businessCount === allTransactions.length)
-      } else {
-        setAllBusinessSelected(false)
-      }
+      // Check if ALL transactions are marked as business
+      const allAreBusiness = allTransactions.length > 0 && allTransactions.every((t: any) => t.is_business)
+      setAllBusinessSelected(allAreBusiness)
     } catch (error) {
       console.error("Failed to check overall business status:", error)
-      setAllBusinessSelected(false)
     }
   }
 
@@ -362,6 +371,47 @@ export function Dashboard() {
       console.error("Failed to toggle all business status:", error)
     } finally {
       setToggleLoading(null)
+    }
+  }
+
+  // Load recurring transactions
+  const loadRecurringTransactions = async () => {
+    setRecurringLoading(true)
+    try {
+      const data = await api.get("/transactions?recurring=true&pageSize=1000")
+      setRecurringTransactions(data.transactions || [])
+    } catch (error) {
+      console.error("Failed to load recurring transactions:", error)
+    } finally {
+      setRecurringLoading(false)
+    }
+  }
+
+  // Toggle all recurring transactions
+  const handleToggleAllRecurring = async (isBusiness: boolean) => {
+    try {
+      setRecurringToggleLoading("all")
+      
+      // Get all recurring transaction IDs
+      const recurringIds = recurringTransactions.map(t => t.id)
+      
+      // Call API to toggle all recurring transactions
+      await api.toggleAllBusiness(isBusiness, { idList: recurringIds })
+      
+      // Reload recurring transactions to reflect changes
+      await loadRecurringTransactions()
+      
+      // Also refresh main transactions if on that tab
+      if (activeTab === "transactions") {
+        await loadTransactions()
+      }
+      
+      // Update overall business status
+      await checkOverallBusinessStatus()
+    } catch (error) {
+      console.error("Failed to toggle all recurring transactions:", error)
+    } finally {
+      setRecurringToggleLoading(null)
     }
   }
 
@@ -959,50 +1009,301 @@ export function Dashboard() {
   const renderCategories = () => {
     if (!hasData) {
       return (
-        <div className="text-center py-12">
-          <Tags className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-200 mb-2">No categories available</h3>
-          <p className="text-gray-400 mb-4">Upload your CSV files to see expense categories</p>
-          <Button onClick={() => setActiveTab("upload")} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Files
-          </Button>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Tags className="h-8 w-8 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-400 font-medium">No data available</p>
+            <p className="text-gray-500 text-sm">Upload your transaction data first</p>
+          </div>
         </div>
       )
     }
 
+    const categoryData: Record<string, {total: number, count: number, business: number, personal: number}> = transactions.reduce((acc: Record<string, {total: number, count: number, business: number, personal: number}>, transaction: any) => {
+      const category = transaction.category || "Uncategorized"
+      if (!acc[category]) {
+        acc[category] = { total: 0, count: 0, business: 0, personal: 0 }
+      }
+      acc[category].total += Math.abs(transaction.amount)
+      acc[category].count += 1
+      if (transaction.is_business) {
+        acc[category].business += Math.abs(transaction.amount)
+      } else {
+        acc[category].personal += Math.abs(transaction.amount)
+      }
+      return acc
+    }, {})
+
+    const sortedCategories = Object.entries(categoryData).sort(([, a]: [string, any], [, b]: [string, any]) => b.total - a.total)
+
     return (
       <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-100">Expense Categories</h2>
-          <p className="text-gray-400">Breakdown of your business expenses by category</p>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Total Categories</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-100">{sortedCategories.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Top Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-semibold text-gray-100">
+                {sortedCategories[0]?.[0] || "N/A"}
+              </div>
+              <div className="text-sm text-gray-400">
+                ${sortedCategories[0]?.[1]?.total?.toFixed(2) || "0.00"}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Average per Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-100">
+                ${sortedCategories.length > 0 
+                  ? (Object.values(categoryData).reduce((sum: number, cat: any) => sum + cat.total, 0) / sortedCategories.length).toFixed(2)
+                  : "0.00"
+                }
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {summary?.schedule_c &&
-            Object.entries(summary.schedule_c).map(([line, amount]) => (
-              <Card
-                key={line}
-                className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg hover:shadow-xl transition-shadow"
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-gray-200">
-                    <span className="capitalize">Schedule C Line {line}</span>
-                    <Badge variant="outline" className="border-gray-600 text-gray-300">
-                      Line {line}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-gray-100">{formatCurrency(amount)}</div>
-                  <Progress
-                    value={Math.min((amount / (summary.summary.total_expenses || 1)) * 100, 100)}
-                    className="mt-2 bg-gray-700"
-                  />
-                </CardContent>
-              </Card>
-            ))}
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-gray-100">Category Breakdown</CardTitle>
+            <CardDescription className="text-gray-400">
+              Spending by category with business/personal split
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {sortedCategories.map(([category, data]: any) => (
+                <div key={category} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-300">{category}</span>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-gray-100">${data.total.toFixed(2)}</div>
+                      <div className="text-xs text-gray-400">{data.count} transactions</div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1 h-2">
+                    <div 
+                      className="bg-blue-600 rounded-l"
+                      style={{ width: `${(data.business / data.total) * 100}%` }}
+                    />
+                    <div 
+                      className="bg-gray-600 rounded-r"
+                      style={{ width: `${(data.personal / data.total) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>Business: ${data.business.toFixed(2)}</span>
+                    <span>Personal: ${data.personal.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const renderRecurring = () => {
+    const allRecurringBusiness = recurringTransactions.length > 0 && recurringTransactions.every(t => t.is_business)
+    const allRecurringPersonal = recurringTransactions.length > 0 && recurringTransactions.every(t => !t.is_business)
+
+    return (
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Total Recurring</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-100">{recurringTransactions.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Business Recurring</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-400">
+                {recurringTransactions.filter(t => t.is_business).length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Personal Recurring</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-400">
+                {recurringTransactions.filter(t => !t.is_business).length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Monthly Impact</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-bold text-gray-100">
+                ${recurringTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0).toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Bulk Actions */}
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-gray-100">Bulk Actions</CardTitle>
+            <CardDescription className="text-gray-400">
+              Mark all recurring transactions as business or personal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex space-x-4">
+              <Button
+                onClick={() => handleToggleAllRecurring(true)}
+                disabled={recurringToggleLoading === "all" || allRecurringBusiness}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {recurringToggleLoading === "all" ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                Mark All as Business
+              </Button>
+              
+              <Button
+                onClick={() => handleToggleAllRecurring(false)}
+                disabled={recurringToggleLoading === "all" || allRecurringPersonal}
+                variant="outline"
+                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                {recurringToggleLoading === "all" ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <X className="h-4 w-4 mr-2" />
+                )}
+                Mark All as Personal
+              </Button>
+
+              <Button
+                onClick={loadRecurringTransactions}
+                disabled={recurringLoading}
+                variant="outline"
+                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                {recurringLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Refresh
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recurring Transactions Table */}
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-gray-100">Recurring Transactions</CardTitle>
+            <CardDescription className="text-gray-400">
+              Transactions that appear regularly in your statements
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recurringLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-400">Loading recurring transactions...</span>
+              </div>
+            ) : recurringTransactions.length === 0 ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-400 font-medium">No recurring transactions found</p>
+                  <p className="text-gray-500 text-sm">Upload more data to identify recurring patterns</p>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-gray-700 hover:bg-gray-700/50">
+                      <TableHead className="text-gray-400 py-3">Date</TableHead>
+                      <TableHead className="text-gray-400 py-3">Description</TableHead>
+                      <TableHead className="text-gray-400 py-3">Amount</TableHead>
+                      <TableHead className="text-gray-400 py-3">Category</TableHead>
+                      <TableHead className="text-gray-400 py-3">Card</TableHead>
+                      <TableHead className="text-gray-400 py-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs">Business</span>
+                        </div>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recurringTransactions.map((transaction) => (
+                      <TableRow key={transaction.id} className="border-gray-700 hover:bg-gray-700/30">
+                        <TableCell className="text-gray-300 py-3">
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-gray-100 py-3 max-w-xs">
+                          <div className="truncate" title={transaction.description}>
+                            {transaction.description}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-gray-100 py-3">
+                          <div className={`font-medium ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                            {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-gray-300 py-3">
+                          <Badge variant="outline" className="border-gray-600 text-gray-300">
+                            {transaction.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-gray-300 py-3">
+                          <Badge variant="outline" className="border-gray-600 text-gray-300">
+                            {transaction.card}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <Checkbox
+                            checked={transaction.is_business}
+                            onCheckedChange={(checked) => handleToggleBusiness(transaction.id, !!checked)}
+                            disabled={toggleLoading === transaction.id}
+                            className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -1090,6 +1391,8 @@ export function Dashboard() {
         return renderCategories()
       case "export":
         return renderExport()
+      case "recurring":
+        return renderRecurring()
       default:
         return renderUpload()
     }
@@ -1154,6 +1457,19 @@ export function Dashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("recurring")}
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
+              activeTab === "recurring"
+                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
+                : "text-gray-300 hover:bg-gray-700/50"
+            }`}
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="text-sm font-medium">Recurring</span>
+            {activeTab === "recurring" && <ChevronRight className="h-3 w-3 ml-auto" />}
+          </button>
+
+          <button
             onClick={() => setActiveTab("categories")}
             className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "categories"
@@ -1192,6 +1508,7 @@ export function Dashboard() {
               {activeTab === "upload" && "Upload CSV Files"}
               {activeTab === "overview" && "Overview"}
               {activeTab === "transactions" && "Transactions"}
+              {activeTab === "recurring" && "Recurring Transactions"}
               {activeTab === "categories" && "Categories"}
               {activeTab === "export" && "Export"}
             </h1>
@@ -1199,6 +1516,7 @@ export function Dashboard() {
               {activeTab === "upload" && "Import your bank statements and credit card transactions"}
               {activeTab === "overview" && "Financial summary and key metrics"}
               {activeTab === "transactions" && "Review and manage your transactions"}
+              {activeTab === "recurring" && "Manage recurring transactions and bulk actions"}
               {activeTab === "categories" && "Expense breakdown by category"}
               {activeTab === "export" && "Download reports and tax forms"}
             </p>
