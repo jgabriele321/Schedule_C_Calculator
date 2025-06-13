@@ -1,5 +1,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 
+console.log('API_BASE_URL configured as:', API_BASE_URL)
+
 export const api = {
   async get(endpoint: string) {
     const response = await fetch(`${API_BASE_URL}${endpoint}`)
@@ -22,12 +24,25 @@ export const api = {
     formData.append("file", file)
     formData.append("source", source)
 
+    console.log(`Uploading to: ${API_BASE_URL}/upload-csv`)
+    console.log(`File: ${file.name}, Size: ${file.size}, Source: ${source}`)
+
     const response = await fetch(`${API_BASE_URL}/upload-csv`, {
       method: "POST",
       body: formData,
     })
-    if (!response.ok) throw new Error("Upload failed")
-    return response.json()
+    
+    console.log(`Upload response status: ${response.status}`)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Upload failed: ${response.status} - ${errorText}`)
+      throw new Error(`Upload failed: ${response.status} - ${errorText}`)
+    }
+    
+    const result = await response.json()
+    console.log('Upload result:', result)
+    return result
   },
 
   async toggleBusiness(transactionId: string, isBusiness: boolean) {
@@ -48,5 +63,9 @@ export const api = {
       ...(filters?.typeFilter && { type_filter: filters.typeFilter }),
       ...(filters?.idList && { id_list: filters.idList }),
     })
+  },
+
+  async clearAllData() {
+    return this.post("/clear-all-data", {})
   },
 }

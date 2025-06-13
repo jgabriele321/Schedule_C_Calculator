@@ -23,7 +23,10 @@ import {
   ArrowUp,
   ArrowDown,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  Settings,
+  Plus,
+  FolderOpen
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,14 +50,19 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [hasData, setHasData] = useState(false)
 
-  // Upload state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  // Upload state - Updated for batch uploads
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [sourceType, setSourceType] = useState<string>("expenses")
   const [uploading, setUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [recentUploads, setRecentUploads] = useState<UploadedFile[]>([])
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({})
+  const [currentlyUploading, setCurrentlyUploading] = useState<string[]>([])
+  
+  // Keep backward compatibility
+  const selectedFile = selectedFiles.length > 0 ? selectedFiles[0] : null
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("")
@@ -86,6 +94,10 @@ export function Dashboard() {
   const [recurringLoading, setRecurringLoading] = useState(false)
   const [recurringToggleLoading, setRecurringToggleLoading] = useState<string | null>(null)
   const [expandedMerchants, setExpandedMerchants] = useState<Set<string>>(new Set())
+
+  // Settings state
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false)
+  const [clearingData, setClearingData] = useState(false)
 
   useEffect(() => {
     // Load saved tab from localStorage
@@ -191,69 +203,143 @@ export function Dashboard() {
     e.stopPropagation()
     setDragActive(false)
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      validateAndSetFile(file)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      validateAndAddFiles(e.dataTransfer.files)
     }
-  }, [])
+  }, [selectedFiles])
 
-  const validateAndSetFile = (file: File) => {
+  const validateAndAddFiles = (files: FileList | File[]) => {
     setUploadError(null)
+    const fileArray = Array.from(files)
+    const validFiles: File[] = []
+    const errors: string[] = []
 
-    // Validate file type
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setUploadError("Please select a CSV file")
+    // Check if adding these files would exceed the 8 file limit
+    if (selectedFiles.length + fileArray.length > 8) {
+      setUploadError(`Cannot upload more than 8 files at once. Currently have ${selectedFiles.length} files selected.`)
       return
     }
 
-    // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadError("File size must be less than 10MB")
-      return
+    fileArray.forEach(file => {
+      // Validate file type
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        errors.push(`${file.name}: Must be a CSV file`)
+        return
+      }
+
+      // Validate file size (10MB max)
+      if (file.size > 10 * 1024 * 1024) {
+        errors.push(`${file.name}: File size must be less than 10MB`)
+        return
+      }
+
+      // Check for duplicates
+      if (selectedFiles.some(existing => existing.name === file.name && existing.size === file.size)) {
+        errors.push(`${file.name}: File already selected`)
+        return
+      }
+
+      validFiles.push(file)
+    })
+
+    if (errors.length > 0) {
+      setUploadError(errors.join(', '))
     }
 
-    setSelectedFile(file)
+    if (validFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...validFiles])
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+    setUploadError(null)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      validateAndSetFile(e.target.files[0])
+    if (e.target.files && e.target.files.length > 0) {
+      validateAndAddFiles(e.target.files)
     }
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) return
+    if (selectedFiles.length === 0) return
 
     try {
       setUploading(true)
       setUploadError(null)
+      setUploadProgress({})
+      setCurrentlyUploading(selectedFiles.map(f => f.name))
 
-      await api.uploadCSV(selectedFile, sourceType)
+      const uploadResults = []
+      let hasErrors = false
 
-      setUploadSuccess(true)
-      setSelectedFile(null)
-      setHasData(true)
+      // Upload files sequentially to avoid overwhelming the server
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i]
+        try {
+          console.log(`Uploading file ${i + 1}/${selectedFiles.length}: ${file.name}`)
+          setUploadProgress(prev => ({ ...prev, [file.name]: 50 }))
+          
+          const result = await api.uploadCSV(file, sourceType)
+          console.log(`Upload successful for ${file.name}:`, result)
+          
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
+          uploadResults.push({ file: file.name, success: true, result })
 
-      // Add to recent uploads
-      const newUpload: UploadedFile = {
-        id: Date.now().toString(),
-        name: selectedFile.name,
-        size: selectedFile.size,
-        uploadDate: new Date().toISOString(),
-        transactionCount: 0, // Would come from API response
+          // Add to recent uploads
+          const newUpload: UploadedFile = {
+            id: `${Date.now()}-${i}`,
+            name: file.name,
+            size: file.size,
+            uploadDate: new Date().toISOString(),
+            transactionCount: result.transactions_processed || 0,
+          }
+          setRecentUploads((prev) => [newUpload, ...prev.slice(0, 7)])
+
+        } catch (err) {
+          console.error(`Upload failed for ${file.name}:`, err)
+          hasErrors = true
+          setUploadProgress(prev => ({ ...prev, [file.name]: -1 }))
+          uploadResults.push({ 
+            file: file.name, 
+            success: false, 
+            error: err instanceof Error ? err.message : "Upload failed" 
+          })
+        }
       }
-      setRecentUploads((prev) => [newUpload, ...prev.slice(0, 4)])
 
-      // Redirect to overview after successful upload
-      setTimeout(() => {
-        setActiveTab("overview")
-        setUploadSuccess(false)
-        loadSummary()
-      }, 2000)
+      if (!hasErrors) {
+        setUploadSuccess(true)
+        setSelectedFiles([])
+        setHasData(true)
+
+        // Redirect to overview after successful upload
+        setTimeout(() => {
+          setActiveTab("overview")
+          setUploadSuccess(false)
+          loadSummary()
+        }, 3000)
+      } else {
+        const errorFiles = uploadResults.filter(r => !r.success)
+        const successFiles = uploadResults.filter(r => r.success)
+        
+        if (successFiles.length > 0) {
+          setHasData(true)
+          // Remove successfully uploaded files
+          const successFileNames = successFiles.map(r => r.file)
+          setSelectedFiles(prev => prev.filter(f => !successFileNames.includes(f.name)))
+        }
+        
+        setUploadError(`Failed to upload: ${errorFiles.map(r => `${r.file} (${r.error})`).join(', ')}`)
+      }
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed")
+      console.error("Batch upload error:", err)
+      setUploadError(err instanceof Error ? err.message : "Batch upload failed")
     } finally {
       setUploading(false)
+      setCurrentlyUploading([])
+      setTimeout(() => setUploadProgress({}), 3000)
     }
   }
 
@@ -398,6 +484,36 @@ export function Dashboard() {
     }
   }
 
+  // Clear all data function
+  const handleClearAllData = async () => {
+    try {
+      setClearingData(true)
+      await api.clearAllData()
+      
+      // Reset all state
+      setTransactions([])
+      setSummary(null)
+      setBusinessSummary(null)
+      setRecurringTransactions([])
+      setHasData(false)
+      setActiveTab("upload")
+      setCurrentPage(1)
+      setSearchTerm("")
+      setSelectedCard("all")
+      setSelectedType("all")
+      setSelectedCategory("all")
+      setAllBusinessSelected(false)
+      setRecentUploads([])
+      
+      setShowClearConfirmation(false)
+    } catch (error) {
+      console.error("Failed to clear all data:", error)
+      alert("Failed to clear data. Please try again.")
+    } finally {
+      setClearingData(false)
+    }
+  }
+
   // Toggle all recurring transactions
   const handleToggleAllRecurring = async (isBusiness: boolean) => {
     try {
@@ -469,10 +585,10 @@ export function Dashboard() {
       <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-sm">
         <CardContent className="p-8">
           <div
-            className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+            className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
               dragActive
                 ? "border-blue-500 bg-blue-900/20"
-                : selectedFile
+                : selectedFiles.length > 0
                   ? "border-green-500 bg-green-900/20"
                   : "border-gray-600 hover:border-blue-500 hover:bg-blue-900/10"
             }`}
@@ -481,33 +597,99 @@ export function Dashboard() {
             onDragOver={handleDrag}
             onDrop={handleDrop}
           >
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
+            {selectedFiles.length === 0 && (
+              <input
+                type="file"
+                accept=".csv"
+                multiple
+                onChange={handleFileSelect}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+            )}
 
             <div className="space-y-4">
-              {selectedFile ? (
+              {selectedFiles.length > 0 ? (
                 <>
-                  <Check className="h-12 w-12 text-green-400 mx-auto" />
-                  <div>
-                    <p className="text-lg font-medium text-green-300">{selectedFile.name}</p>
-                    <p className="text-sm text-green-400">{formatFileSize(selectedFile.size)}</p>
+                  <div className="flex items-center justify-center space-x-2">
+                    <FileText className="h-8 w-8 text-green-400" />
+                    <span className="text-lg font-medium text-green-300">
+                      {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected
+                    </span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedFile(null)
-                    }}
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Remove
-                  </Button>
+                  
+                  {/* File List */}
+                  <div className="max-h-40 overflow-y-auto space-y-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={`${file.name}-${index}`} className="flex items-center justify-between p-2 bg-gray-700/30 rounded">
+                        <div className="flex items-center space-x-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-200 truncate">{file.name}</p>
+                            <p className="text-xs text-gray-400">{formatFileSize(file.size)}</p>
+                          </div>
+                          {uploadProgress[file.name] !== undefined && (
+                            <div className="flex items-center space-x-1">
+                              {uploadProgress[file.name] === 100 ? (
+                                <Check className="h-4 w-4 text-green-400" />
+                              ) : uploadProgress[file.name] === -1 ? (
+                                <X className="h-4 w-4 text-red-400" />
+                              ) : (
+                                <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeFile(index)
+                          }}
+                          className="text-gray-400 hover:text-red-400 p-1"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex space-x-2 justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedFiles([])
+                      }}
+                      className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Clear All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = '.csv'
+                        input.multiple = true
+                        input.onchange = (event) => {
+                          const target = event.target as HTMLInputElement
+                          if (target.files) {
+                            validateAndAddFiles(target.files)
+                          }
+                        }
+                        input.click()
+                      }}
+                      className="border-blue-600 text-blue-300 hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add More
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -516,8 +698,31 @@ export function Dashboard() {
                     <p className="text-lg font-medium text-gray-200">
                       Drag and drop your CSV files here, or click to browse
                     </p>
-                    <p className="text-sm text-gray-400">CSV files only, max 10MB</p>
+                    <p className="text-sm text-gray-400">
+                      CSV files only, max 10MB each, up to 8 files
+                    </p>
                   </div>
+                  <Button
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = '.csv'
+                      input.multiple = true
+                      input.onchange = (event) => {
+                        const target = event.target as HTMLInputElement
+                        if (target.files) {
+                          validateAndAddFiles(target.files)
+                        }
+                      }
+                      input.click()
+                    }}
+                    className="border-blue-600 text-blue-300 hover:bg-blue-700"
+                  >
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Browse Files
+                  </Button>
                 </>
               )}
             </div>
@@ -534,7 +739,7 @@ export function Dashboard() {
             <Alert className="mt-4 border-green-900 bg-green-900/20">
               <Check className="h-4 w-4 text-green-400" />
               <AlertDescription className="text-green-300">
-                File uploaded successfully! Redirecting to overview...
+                {selectedFiles.length > 1 ? 'Files' : 'File'} uploaded successfully! Redirecting to overview...
               </AlertDescription>
             </Alert>
           )}
@@ -615,19 +820,19 @@ export function Dashboard() {
       <div className="text-center">
         <Button
           onClick={handleUpload}
-          disabled={!selectedFile || uploading}
+          disabled={selectedFiles.length === 0 || uploading}
           size="lg"
           className="px-8 bg-blue-600 hover:bg-blue-700 text-white"
         >
           {uploading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Processing...
+              Processing {currentlyUploading.length > 0 ? `(${currentlyUploading.length} files)` : ''}...
             </>
           ) : (
             <>
               <Upload className="h-4 w-4 mr-2" />
-              Upload and Process CSV
+              Upload and Process {selectedFiles.length > 1 ? `${selectedFiles.length} Files` : 'CSV'}
             </>
           )}
         </Button>
@@ -1450,7 +1655,7 @@ export function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 border-b border-gray-700 bg-gray-800 px-8 flex items-center sticky top-0 z-10">
+        <header className="h-14 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-between sticky top-0 z-10">
           <div>
             <h1 className="text-lg font-semibold text-gray-100">
               {activeTab === "upload" && "Upload CSV Files"}
@@ -1469,6 +1674,23 @@ export function Dashboard() {
               {activeTab === "export" && "Download reports and tax forms"}
             </p>
           </div>
+          
+          {/* Settings Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-100 hover:bg-gray-700">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700">
+              <DropdownMenuItem 
+                onClick={() => setShowClearConfirmation(true)}
+                className="text-red-400 hover:text-red-300 hover:bg-gray-700 cursor-pointer"
+              >
+                Clear All Data
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         {/* Main content */}
@@ -1478,6 +1700,123 @@ export function Dashboard() {
           </div>
         </main>
       </div>
+
+      {/* Clear Data Confirmation Dialog */}
+      {showClearConfirmation && (
+        <div className="!fixed !inset-0 !bg-black !bg-opacity-60 !flex !items-center !justify-center !z-50 !p-4" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px'
+        }}>
+          <div className="!bg-white !border !border-gray-300 !rounded-xl !p-8 !max-w-md !w-full !shadow-2xl !mx-4" style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid #d1d5db',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '28rem',
+            width: '100%',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            margin: '0 16px'
+          }}>
+            <div className="!flex !items-center !space-x-3 !mb-6" style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '24px'
+            }}>
+              <div className="!flex-shrink-0 !w-10 !h-10 !bg-red-100 !rounded-full !flex !items-center !justify-center" style={{
+                flexShrink: 0,
+                width: '40px',
+                height: '40px',
+                backgroundColor: '#fee2e2',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <AlertCircle className="!h-6 !w-6 !text-red-600" style={{
+                  width: '24px',
+                  height: '24px',
+                  color: '#dc2626'
+                }} />
+              </div>
+              <h3 className="!text-xl !font-bold !text-gray-900" style={{
+                fontSize: '20px',
+                fontWeight: 'bold',
+                color: '#111827',
+                margin: 0
+              }}>Clear All Data</h3>
+            </div>
+            
+            <p className="!text-gray-700 !mb-8 !leading-relaxed" style={{
+              color: '#374151',
+              marginBottom: '32px',
+              lineHeight: '1.625'
+            }}>
+              Are you sure you want to delete all data? This will permanently remove all transactions, 
+              uploads, and settings. <strong>This action cannot be undone.</strong>
+            </p>
+            
+            <div className="!flex !space-x-4 !justify-end" style={{
+              display: 'flex',
+              gap: '16px',
+              justifyContent: 'flex-end'
+            }}>
+              <Button
+                variant="outline"
+                onClick={() => setShowClearConfirmation(false)}
+                disabled={clearingData}
+                className="!px-6 !py-2 !border-gray-300 !text-gray-700 !bg-white hover:!bg-gray-50 !font-medium"
+                style={{
+                  padding: '8px 24px',
+                  border: '1px solid #d1d5db',
+                  color: '#374151',
+                  backgroundColor: '#ffffff',
+                  fontWeight: '500',
+                  borderRadius: '6px'
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleClearAllData}
+                disabled={clearingData}
+                className="!px-6 !py-2 !bg-red-600 hover:!bg-red-700 !text-white !border-0 !font-bold !shadow-lg hover:!shadow-xl !transition-all"
+                style={{
+                  padding: '8px 24px',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  borderRadius: '6px',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+                }}
+              >
+                {clearingData ? (
+                  <>
+                    <Loader2 className="!h-4 !w-4 !mr-2 !animate-spin" style={{
+                      width: '16px',
+                      height: '16px',
+                      marginRight: '8px'
+                    }} />
+                    Clearing...
+                  </>
+                ) : (
+                  "Delete All Data"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

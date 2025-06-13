@@ -142,7 +142,7 @@ func main() {
 
 	// CORS for frontend communication
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001"}, // Next.js ports
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004", "http://localhost:3005", "http://localhost:3006", "http://localhost:3007", "http://localhost:3008"}, // Next.js ports
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -167,6 +167,7 @@ func main() {
 	r.Get("/summary", getScheduleCSummary)
 	r.Get("/business-summary", getBusinessSummary)
 	r.Post("/fix-income", fixIncomeTransactions)
+	r.Post("/clear-all-data", clearAllData)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -2029,4 +2030,68 @@ func getBusinessSummary(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func clearAllData(w http.ResponseWriter, r *http.Request) {
+	// Begin transaction for atomic operation
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to start database transaction", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Clear all tables
+	tables := []string{"transactions", "csv_files", "vendor_rules", "deduction_data"}
+
+	for _, table := range tables {
+		_, err := tx.Exec(fmt.Sprintf("DELETE FROM %s", table))
+		if err != nil {
+			log.Printf("Error clearing table %s: %v", table, err)
+			http.Error(w, fmt.Sprintf("Failed to clear table %s", table), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Clear uploaded files directory
+	err = clearUploadsDirectory()
+	if err != nil {
+		log.Printf("Error clearing uploads directory: %v", err)
+		// Don't fail the request for this, just log it
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to commit database changes", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("🗑️ All data cleared successfully")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   true,
+		"message":   "All data cleared successfully",
+		"timestamp": time.Now(),
+	})
+}
+
+func clearUploadsDirectory() error {
+	// Remove all files in uploads directory but keep the directory
+	files, err := filepath.Glob("uploads/*")
+	if err != nil {
+		return fmt.Errorf("failed to list upload files: %v", err)
+	}
+
+	for _, file := range files {
+		err := os.Remove(file)
+		if err != nil {
+			log.Printf("Warning: Failed to remove file %s: %v", file, err)
+		}
+	}
+
+	return nil
 }
