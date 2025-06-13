@@ -243,30 +243,23 @@ export function Dashboard() {
   // Update effect dependencies to include filters
   useEffect(() => {
     if (hasData && activeTab === "transactions") {
-      // Reset to first page when filters change
-      if (currentPage !== 1) {
-        setCurrentPage(1)
-      } else {
-        loadTransactions()
-      }
+      loadTransactions()
+      // Also check overall business status for master toggle
+      checkOverallBusinessStatus()
     }
   }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory, hasData, activeTab, loadTransactions])
+
+  // Separate effect to reset to page 1 when filters change (but not when page changes)
+  useEffect(() => {
+    if (hasData && activeTab === "transactions" && currentPage !== 1) {
+      setCurrentPage(1)
+    }
+  }, [searchTerm, selectedCard, selectedType, selectedCategory, hasData, activeTab])
 
   const filteredTransactions = transactions
 
   const uniqueCards = Array.from(new Set((transactions || []).map((t) => t.card)))
   const uniqueCategories = Array.from(new Set((transactions || []).map((t) => t.category)))
-
-  // Update master toggle state based on filtered transactions (optimized)
-  useEffect(() => {
-    if (filteredTransactions.length > 0) {
-      const businessCount = filteredTransactions.filter(t => t.is_business).length
-      // Master toggle is "on" if ALL visible transactions are business
-      setAllBusinessSelected(businessCount === filteredTransactions.length)
-    } else {
-      setAllBusinessSelected(false)
-    }
-  }, [filteredTransactions])
 
   // Toggle handler functions (optimized for performance)
   const handleToggleBusiness = async (transactionId: string, isBusiness: boolean) => {
@@ -280,7 +273,8 @@ export function Dashboard() {
     try {
       setToggleLoading(transactionId)
       await api.toggleBusiness(transactionId, isBusiness)
-      // Success - keep the optimistic update, no need to reload
+      // Success - keep the optimistic update and refresh master toggle state
+      checkOverallBusinessStatus()
     } catch (error) {
       console.error("Failed to toggle business status:", error)
       // Revert on error
@@ -332,31 +326,40 @@ export function Dashboard() {
     }
   }
 
+  // Check overall database business status for master toggle
+  const checkOverallBusinessStatus = async () => {
+    try {
+      const allTransactionsData = await api.get("/transactions?pageSize=10000")
+      const allTransactions = allTransactionsData.transactions || []
+      
+      if (allTransactions.length > 0) {
+        const businessCount = allTransactions.filter((t: any) => t.is_business).length
+        // Master toggle is "on" if ALL transactions in database are business
+        setAllBusinessSelected(businessCount === allTransactions.length)
+      } else {
+        setAllBusinessSelected(false)
+      }
+    } catch (error) {
+      console.error("Failed to check overall business status:", error)
+      setAllBusinessSelected(false)
+    }
+  }
+
   const handleToggleAllBusiness = async () => {
-    const filteredIds = filteredTransactions.map(t => t.id)
     const newState = !allBusinessSelected
-    
-    // Immediate optimistic update
-    setTransactions(prev => 
-      prev.map(t => 
-        filteredIds.includes(t.id) ? { ...t, is_business: newState } : t
-      )
-    )
-    setAllBusinessSelected(newState)
     
     try {
       setToggleLoading("all")
-      await api.toggleAllBusiness(newState, { idList: filteredIds })
-      // Success - keep the optimistic update, no need to reload
+      // Call API to toggle ALL transactions in database (no idList = all transactions)
+      await api.toggleAllBusiness(newState, {})
+      
+      // After successful database update, reload current page to reflect changes
+      await loadTransactions()
+      
+      // Update the master toggle state
+      setAllBusinessSelected(newState)
     } catch (error) {
       console.error("Failed to toggle all business status:", error)
-      // Revert on error
-      setTransactions(prev => 
-        prev.map(t => 
-          filteredIds.includes(t.id) ? { ...t, is_business: !newState } : t
-        )
-      )
-      setAllBusinessSelected(!newState)
     } finally {
       setToggleLoading(null)
     }
@@ -832,7 +835,7 @@ export function Dashboard() {
                       <TableHead className="text-gray-400 py-3">Type</TableHead>
                       <TableHead className="text-gray-400 py-3">
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs">Mark All</span>
+                          <span className="text-xs">Mark All Database</span>
                           <Checkbox
                             checked={allBusinessSelected}
                             onCheckedChange={() => handleToggleAllBusiness()}
