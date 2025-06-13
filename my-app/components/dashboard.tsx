@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import {
   Calculator,
   Upload,
@@ -62,12 +60,23 @@ export function Dashboard() {
   const [selectedType, setSelectedType] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  const [totalTransactions, setTotalTransactions] = useState(0)
+
   // Sorting state
   const [sortBy, setSortBy] = useState<"amount" | "date" | "vendor">("amount")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc") // Default: highest amounts first
 
   // Business toggle state
   const [allBusinessSelected, setAllBusinessSelected] = useState(false)
+
+  // Business summary state
+  const [businessSummary, setBusinessSummary] = useState<any>(null)
+  const [isCalculating, setIsCalculating] = useState(false)
+
+  // Toggle loading state
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
 
   useEffect(() => {
@@ -99,18 +108,43 @@ export function Dashboard() {
     }
   }
 
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await api.get("/transactions")
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        pageSize: pageSize.toString(),
+      })
+
+      // Add filters if they're set
+      if (searchTerm) params.append('search', searchTerm)
+      if (selectedCard !== 'all') params.append('card', selectedCard)
+      if (selectedType !== 'all') params.append('type', selectedType)
+      if (selectedCategory !== 'all') params.append('category', selectedCategory)
+
+      const data = await api.get(`/transactions?${params.toString()}`)
       setTransactions(data.transactions || [])
+      setTotalTransactions(data.total || 0)
+      
+      // Update summary if available
+      if (data.summary) {
+        setSummary(prev => prev ? {
+          ...prev,
+          summary: {
+            ...prev.summary,
+            ...data.summary
+          }
+        } : null)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load transactions")
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory])
 
   const loadSummary = async () => {
     try {
@@ -206,36 +240,19 @@ export function Dashboard() {
     }
   }
 
-  const filteredTransactions = (transactions || [])
-    .filter((transaction) => {
-      const matchesSearch =
-        transaction.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.purpose.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesCard = selectedCard === "all" || transaction.card === selectedCard
-      const matchesType = selectedType === "all" || transaction.type === selectedType
-      const matchesCategory = selectedCategory === "all" || transaction.category === selectedCategory
-
-      return matchesSearch && matchesCard && matchesType && matchesCategory
-    })
-    .sort((a, b) => {
-      let comparison = 0
-      
-      switch (sortBy) {
-        case "amount":
-          comparison = Math.abs(a.amount) - Math.abs(b.amount)
-          break
-        case "date":
-          comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
-          break
-        case "vendor":
-          comparison = a.vendor.localeCompare(b.vendor)
-          break
-        default:
-          comparison = 0
+  // Update effect dependencies to include filters
+  useEffect(() => {
+    if (hasData && activeTab === "transactions") {
+      // Reset to first page when filters change
+      if (currentPage !== 1) {
+        setCurrentPage(1)
+      } else {
+        loadTransactions()
       }
-      
-      return sortOrder === "asc" ? comparison : -comparison
-    })
+    }
+  }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory, hasData, activeTab, loadTransactions])
+
+  const filteredTransactions = transactions
 
   const uniqueCards = Array.from(new Set((transactions || []).map((t) => t.card)))
   const uniqueCategories = Array.from(new Set((transactions || []).map((t) => t.category)))
@@ -263,6 +280,7 @@ export function Dashboard() {
     try {
       setToggleLoading(transactionId)
       await api.toggleBusiness(transactionId, isBusiness)
+      // Success - keep the optimistic update, no need to reload
     } catch (error) {
       console.error("Failed to toggle business status:", error)
       // Revert on error
@@ -273,6 +291,44 @@ export function Dashboard() {
       )
     } finally {
       setToggleLoading(null)
+    }
+  }
+
+  const calculateBusinessSummary = async () => {
+    setIsCalculating(true)
+    try {
+      // Load all transactions to get accurate business/personal split
+      const allTransactionsData = await api.get("/transactions?pageSize=10000")
+      const allTransactions = allTransactionsData.transactions || []
+      
+      const businessTransactions = allTransactions.filter((t: any) => t.is_business)
+      const personalTransactions = allTransactions.filter((t: any) => !t.is_business)
+      
+      const businessExpenses = businessTransactions
+        .filter((t: any) => t.type === 'expense')
+        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
+      
+      const businessIncome = businessTransactions
+        .filter((t: any) => t.type === 'income')
+        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
+      
+      const personalExpenses = personalTransactions
+        .filter((t: any) => t.type === 'expense')
+        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
+      
+      setBusinessSummary({
+        business_expenses: businessExpenses,
+        business_income: businessIncome,
+        business_transactions: businessTransactions.length,
+        personal_transactions: personalTransactions.length,
+        net_profit_loss: businessIncome - businessExpenses,
+        personal_expenses: personalExpenses,
+        total_transactions: allTransactions.length
+      })
+    } catch (error) {
+      console.error("Failed to calculate business summary:", error)
+    } finally {
+      setIsCalculating(false)
     }
   }
 
@@ -291,6 +347,7 @@ export function Dashboard() {
     try {
       setToggleLoading("all")
       await api.toggleAllBusiness(newState, { idList: filteredIds })
+      // Success - keep the optimistic update, no need to reload
     } catch (error) {
       console.error("Failed to toggle all business status:", error)
       // Revert on error
@@ -534,66 +591,105 @@ export function Dashboard() {
 
     return (
       <div className="space-y-6">
+        {/* Calculate Button */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-200">Business Overview</h2>
+            <p className="text-sm text-gray-400">Click Calculate to update totals based on your business selections</p>
+          </div>
+          <Button 
+            onClick={calculateBusinessSummary}
+            disabled={isCalculating}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isCalculating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Calculating...
+              </>
+            ) : (
+              <>
+                <Calculator className="h-4 w-4 mr-2" />
+                Calculate Overview
+              </>
+            )}
+          </Button>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Expenses</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-300">Business Expenses</CardTitle>
               <TrendingDown className="h-4 w-4 text-red-400" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-400">
-                {summary ? formatCurrency(summary.summary.total_expenses) : "--"}
+                {businessSummary ? formatCurrency(businessSummary.business_expenses) : "--"}
               </div>
+              <p className="text-xs text-gray-500">
+                {businessSummary ? `${businessSummary.business_transactions} business transactions` : "Click Calculate"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-300">Personal Expenses</CardTitle>
+              <Receipt className="h-4 w-4 text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-400">
+                {businessSummary ? formatCurrency(businessSummary.personal_expenses) : "--"}
+              </div>
+              <p className="text-xs text-gray-500">
+                {businessSummary ? `${businessSummary.personal_transactions} personal transactions` : "Click Calculate"}
+              </p>
             </CardContent>
           </Card>
 
           <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-300">Total Transactions</CardTitle>
-              <Receipt className="h-4 w-4 text-blue-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-100">
-                {summary ? summary.summary.expense_transactions.toLocaleString() : "--"}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Uncategorized Items</CardTitle>
               <AlertCircle className="h-4 w-4 text-amber-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-400">
-                {summary ? summary.summary.uncategorized_transactions : "--"}
+              <div className="text-2xl font-bold text-gray-100">
+                {businessSummary ? businessSummary.total_transactions.toLocaleString() : "--"}
               </div>
+              <p className="text-xs text-gray-500">
+                {businessSummary ? 
+                  `${businessSummary.business_transactions} business, ${businessSummary.personal_transactions} personal` : 
+                  "Click Calculate"
+                }
+              </p>
             </CardContent>
           </Card>
 
           <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Net Profit/Loss</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-300">Business Net</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-400" />
             </CardHeader>
             <CardContent>
               <div
                 className={`text-2xl font-bold ${
-                  summary && summary.summary.net_profit_loss >= 0 ? "text-green-400" : "text-red-400"
+                  businessSummary && businessSummary.net_profit_loss >= 0 ? "text-green-400" : "text-red-400"
                 }`}
               >
-                {summary ? formatCurrency(summary.summary.net_profit_loss) : "--"}
+                {businessSummary ? formatCurrency(businessSummary.net_profit_loss) : "--"}
               </div>
+              <p className="text-xs text-gray-500">
+                Income - Business Expenses
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {summary && summary.summary.uncategorized_transactions > 0 && (
+        {businessSummary && businessSummary.business_transactions === 0 && (
           <Alert className="border-amber-900 bg-amber-900/20">
             <AlertCircle className="h-4 w-4 text-amber-400" />
             <AlertDescription className="text-amber-300">
-              You have <strong>{summary.summary.uncategorized_transactions}</strong> uncategorized transactions that
-              need review.
+              No business transactions selected. Go to the Transactions tab and mark transactions as business expenses to see your Schedule C overview.
             </AlertDescription>
           </Alert>
         )}
@@ -806,6 +902,49 @@ export function Dashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                {/* Add pagination controls */}
+                <div className="border-t border-gray-700 p-4 bg-gray-800/50">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-400">
+                      Showing {Math.min((currentPage - 1) * pageSize + 1, totalTransactions)} to{" "}
+                      {Math.min(currentPage * pageSize, totalTransactions)} of {totalTransactions} transactions
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                      >
+                        Previous
+                      </Button>
+                      <div className="text-sm text-gray-400">
+                        Page {currentPage} of {Math.ceil(totalTransactions / pageSize)}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalTransactions / pageSize), p + 1))}
+                        disabled={currentPage >= Math.ceil(totalTransactions / pageSize)}
+                        className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                      >
+                        Next
+                      </Button>
+                      <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+                        <SelectTrigger className="w-[110px] bg-gray-800 border-gray-700 text-gray-200">
+                          <SelectValue placeholder="Page size" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-blue-900 border-blue-800 text-white [&>*]:bg-blue-900 [&>*]:text-white">
+                          <SelectItem value="10" className="focus:bg-blue-800 focus:text-white">10 per page</SelectItem>
+                          <SelectItem value="25" className="focus:bg-blue-800 focus:text-white">25 per page</SelectItem>
+                          <SelectItem value="50" className="focus:bg-blue-800 focus:text-white">50 per page</SelectItem>
+                          <SelectItem value="100" className="focus:bg-blue-800 focus:text-white">100 per page</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>

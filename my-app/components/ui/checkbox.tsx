@@ -31,12 +31,13 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         />
         <div
           className={cn(
-            "h-6 w-6 flex items-center justify-center shrink-0 rounded-sm border-2 border-gray-400 bg-gray-700 transition-all cursor-pointer",
+            "h-6 w-6 flex items-center justify-center shrink-0 rounded-sm border-2 border-gray-400 transition-all cursor-pointer",
             "hover:border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
             checked && "bg-green-500 border-green-500",
             disabled && "cursor-not-allowed opacity-50",
             className
           )}
+          style={{ backgroundColor: !checked ? '#e5e7eb' : undefined }}
           onClick={() => !disabled && onCheckedChange?.(!checked)}
         >
           <Check className={cn("h-5 w-5 text-white transition-all", !checked && "opacity-0")}/>

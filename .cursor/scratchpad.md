@@ -503,3 +503,45 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 ## Next Steps
 - Executor should follow the diagnostic steps above, starting with DOM inspection and testing with !important or inline styles.
 - If the issue persists, consider providing a screenshot of the DOM and computed styles for further analysis.
+
+# Pagination Implementation Plan: Transactions Table
+
+## Background and Motivation
+- The transactions table is slow because all transactions are loaded at once. Pagination will reduce load times and memory usage.
+
+## High-level Task Breakdown
+
+### Backend (Go)
+1. **Update /transactions endpoint to accept page and pageSize query parameters**
+   - Parse `page` and `pageSize` from the request (default: page=1, pageSize=50).
+   - Add SQL `LIMIT` and `OFFSET` to the query.
+   - Return total count of transactions for pagination controls.
+   - **Success Criteria:** Endpoint returns only the requested page of transactions and total count.
+
+2. **Test /transactions endpoint with pagination**
+   - Use curl or Postman to verify correct paging and total count.
+   - **Success Criteria:** API returns correct data for different pages and sizes.
+
+### Frontend (Next.js)
+3. **Update API utility to support pagination parameters**
+   - Allow passing `page` and `pageSize` to the transactions fetch function.
+   - **Success Criteria:** API utility can fetch specific pages.
+
+4. **Add pagination controls to the transactions tab**
+   - Add next/prev buttons and display current page/total pages.
+   - Fetch and display only the current page of transactions.
+   - **Success Criteria:** User can navigate between pages and see correct data.
+
+5. **Test UI for usability and performance**
+   - Ensure navigation is smooth and data loads quickly.
+   - **Success Criteria:** No more long load times; UI is responsive.
+
+## Project Status Board
+- [ ] Backend: Add pagination to /transactions endpoint
+- [ ] Backend: Test paginated endpoint
+- [ ] Frontend: Update API utility for pagination
+- [ ] Frontend: Add pagination controls to UI
+- [ ] Frontend: Test and verify performance
+
+## Executor's Feedback or Assistance Requests
+- Ready to begin with backend changes unless otherwise directed.

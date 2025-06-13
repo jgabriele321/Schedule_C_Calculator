@@ -165,6 +165,7 @@ func main() {
 	r.Post("/home-office", updateHomeOfficeDeduction)
 	r.Get("/deductions", getDeductions)
 	r.Get("/summary", getScheduleCSummary)
+	r.Get("/business-summary", getBusinessSummary)
 	r.Post("/fix-income", fixIncomeTransactions)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -189,53 +190,53 @@ func main() {
 func createTables() error {
 	// Create transactions table (updated with schedule_c_line)
 	transactionsTable := `
-	CREATE TABLE IF NOT EXISTS transactions (
-		id TEXT PRIMARY KEY,
-		date DATETIME,
-		vendor TEXT,
-		amount REAL,
-		card TEXT,
-		category TEXT,
-		purpose TEXT,
-		expensable BOOLEAN DEFAULT FALSE,
-		type TEXT,
-		source_file TEXT,
-		schedule_c_line INTEGER DEFAULT 0,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+		CREATE TABLE IF NOT EXISTS transactions (
+			id TEXT PRIMARY KEY,
+			date DATETIME,
+			vendor TEXT,
+			amount REAL,
+			card TEXT,
+			category TEXT,
+			purpose TEXT,
+			expensable BOOLEAN DEFAULT FALSE,
+			type TEXT,
+			source_file TEXT,
+			schedule_c_line INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`
 
 	// Create csv_files table
 	csvFilesTable := `
-	CREATE TABLE IF NOT EXISTS csv_files (
-		id TEXT PRIMARY KEY,
-		filename TEXT,
-		uploaded DATETIME,
-		source TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+		CREATE TABLE IF NOT EXISTS csv_files (
+			id TEXT PRIMARY KEY,
+			filename TEXT,
+			uploaded DATETIME,
+			source TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`
 
 	// Create vendor_rules table for future use
 	vendorRulesTable := `
-	CREATE TABLE IF NOT EXISTS vendor_rules (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		vendor TEXT UNIQUE,
-		type TEXT,
-		expensable BOOLEAN,
-		category TEXT,
-		schedule_c_line INTEGER DEFAULT 0,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+		CREATE TABLE IF NOT EXISTS vendor_rules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			vendor TEXT UNIQUE,
+			type TEXT,
+			expensable BOOLEAN,
+			category TEXT,
+			schedule_c_line INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`
 
 	// Create deduction_data table for future use
 	deductionDataTable := `
-	CREATE TABLE IF NOT EXISTS deduction_data (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		business_miles INTEGER DEFAULT 0,
-		home_office_sqft INTEGER DEFAULT 0,
-		total_home_sqft INTEGER DEFAULT 0,
-		use_simplified BOOLEAN DEFAULT TRUE,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+		CREATE TABLE IF NOT EXISTS deduction_data (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			business_miles INTEGER DEFAULT 0,
+			home_office_sqft INTEGER DEFAULT 0,
+			total_home_sqft INTEGER DEFAULT 0,
+			use_simplified BOOLEAN DEFAULT TRUE,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`
 
 	tables := []string{transactionsTable, csvFilesTable, vendorRulesTable, deductionDataTable}
 
@@ -760,17 +761,31 @@ func saveTransactions(transactions []Transaction) error {
 }
 
 func getTransactions(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters for filtering
+	// Get query parameters for filtering and pagination
 	highValue := r.URL.Query().Get("highValue")
 	threshold := r.URL.Query().Get("threshold")
 	recurring := r.URL.Query().Get("recurring")
 	txType := r.URL.Query().Get("type")
 	card := r.URL.Query().Get("card")
 	category := r.URL.Query().Get("category")
+	search := r.URL.Query().Get("search")
 
-	// Build base query (updated with schedule_c_line)
-	query := `
-		SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line
+	// Pagination params
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("pageSize")
+	page := 1
+	pageSize := 50
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+	if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
+		pageSize = ps
+	}
+	offset := (page - 1) * pageSize
+
+	// Build base query
+	baseQuery := `
+		SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business
 		FROM transactions
 		WHERE 1=1
 	`
@@ -784,23 +799,29 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 				thresholdValue = t
 			}
 		}
-		query += " AND ABS(amount) >= ?"
+		baseQuery += " AND ABS(amount) >= ?"
 		args = append(args, thresholdValue)
 	}
 
 	if txType != "" && (txType == "income" || txType == "expense" || txType == "uncategorized") {
-		query += " AND type = ?"
+		baseQuery += " AND type = ?"
 		args = append(args, txType)
 	}
 
 	if card != "" {
-		query += " AND card LIKE ?"
-		args = append(args, "%"+card+"%")
+		baseQuery += " AND card = ?"
+		args = append(args, card)
 	}
 
 	if category != "" {
-		query += " AND category LIKE ?"
-		args = append(args, "%"+category+"%")
+		baseQuery += " AND category = ?"
+		args = append(args, category)
+	}
+
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		baseQuery += " AND (vendor LIKE ? OR purpose LIKE ?)"
+		args = append(args, searchTerm, searchTerm)
 	}
 
 	// Handle recurring vendors
@@ -823,7 +844,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 
 			if len(recurringVendors) > 0 {
 				placeholders := strings.Repeat("?,", len(recurringVendors)-1) + "?"
-				query += " AND vendor IN (" + placeholders + ")"
+				baseQuery += " AND vendor IN (" + placeholders + ")"
 				for _, vendor := range recurringVendors {
 					args = append(args, vendor)
 				}
@@ -831,7 +852,13 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	query += " ORDER BY date DESC"
+	// For total count (before LIMIT/OFFSET)
+	countQuery := strings.Replace(baseQuery, "SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business", "SELECT COUNT(*)", 1)
+	countArgs := make([]interface{}, len(args))
+	copy(countArgs, args)
+
+	query := baseQuery + " ORDER BY date DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, offset)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -845,12 +872,19 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var tx Transaction
 		err := rows.Scan(&tx.ID, &tx.Date, &tx.Vendor, &tx.Amount, &tx.Card,
-			&tx.Category, &tx.Purpose, &tx.Expensable, &tx.Type, &tx.SourceFile, &tx.ScheduleCLine)
+			&tx.Category, &tx.Purpose, &tx.Expensable, &tx.Type, &tx.SourceFile, &tx.ScheduleCLine, &tx.IsBusiness)
 		if err != nil {
 			log.Printf("Error scanning transaction: %v", err)
 			continue
 		}
 		transactions = append(transactions, tx)
+	}
+
+	// Get total count
+	var totalCount int
+	err = db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+	if err != nil {
+		totalCount = 0
 	}
 
 	// Calculate summary statistics
@@ -859,6 +893,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"transactions": transactions,
 		"count":        len(transactions),
+		"total":        totalCount,
+		"page":         page,
+		"pageSize":     pageSize,
 		"summary":      summary,
 		"filters": map[string]interface{}{
 			"highValue": highValue == "true",
@@ -867,6 +904,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			"type":      txType,
 			"card":      card,
 			"category":  category,
+			"search":    search,
 		},
 	}
 
@@ -1828,4 +1866,160 @@ func toggleAllBusinessStatus(w http.ResponseWriter, r *http.Request) {
 		"transactions_updated": rowsAffected,
 		"is_business":          req.IsBusiness,
 	})
+}
+
+func getBusinessSummary(w http.ResponseWriter, r *http.Request) {
+	// Get all business income transactions
+	incomeQuery := `
+		SELECT SUM(ABS(amount)) 
+		FROM transactions 
+		WHERE type = 'income' AND is_business = true
+	`
+	var grossReceipts sql.NullFloat64
+	err := db.QueryRow(incomeQuery).Scan(&grossReceipts)
+	if err != nil && err != sql.ErrNoRows {
+		log.Printf("Error calculating business gross receipts: %v", err)
+	}
+
+	businessIncome := 0.0
+	if grossReceipts.Valid {
+		businessIncome = grossReceipts.Float64
+	}
+
+	// Get business expenses by Schedule C line number
+	expenseQuery := `
+		SELECT schedule_c_line, SUM(ABS(amount)) 
+		FROM transactions 
+		WHERE type = 'expense' AND is_business = true AND schedule_c_line > 0
+		GROUP BY schedule_c_line
+	`
+
+	expenseRows, err := db.Query(expenseQuery)
+	if err != nil {
+		log.Printf("Error querying business expenses: %v", err)
+		http.Error(w, "Failed to calculate business expenses", http.StatusInternalServerError)
+		return
+	}
+	defer expenseRows.Close()
+
+	scheduleC := map[string]interface{}{
+		"line8_advertising":          0.0,
+		"line9_car_truck":            0.0,
+		"line10_commissions_fees":    0.0,
+		"line11_contract_labor":      0.0,
+		"line12_depletion":           0.0,
+		"line13_depreciation":        0.0,
+		"line14_employee_benefits":   0.0,
+		"line15_insurance":           0.0,
+		"line16_interest":            0.0,
+		"line17_legal_professional":  0.0,
+		"line18_office_expense":      0.0,
+		"line19_pension_profit":      0.0,
+		"line20_rent_lease":          0.0,
+		"line21_repairs_maintenance": 0.0,
+		"line22_supplies":            0.0,
+		"line23_taxes_licenses":      0.0,
+		"line24_travel_meals":        0.0,
+		"line25_utilities":           0.0,
+		"line26_wages":               0.0,
+		"line27_other_expenses":      0.0,
+		"line30_home_office":         0.0,
+	}
+
+	var totalBusinessExpenses float64
+	for expenseRows.Next() {
+		var lineNumber int
+		var amount float64
+		err := expenseRows.Scan(&lineNumber, &amount)
+		if err != nil {
+			log.Printf("Error scanning business expense row: %v", err)
+			continue
+		}
+
+		// Map to Schedule C lines
+		switch lineNumber {
+		case 8:
+			scheduleC["line8_advertising"] = amount
+		case 9:
+			scheduleC["line9_car_truck"] = amount
+		case 10:
+			scheduleC["line10_commissions_fees"] = amount
+		case 11:
+			scheduleC["line11_contract_labor"] = amount
+		case 12:
+			scheduleC["line12_depletion"] = amount
+		case 13:
+			scheduleC["line13_depreciation"] = amount
+		case 14:
+			scheduleC["line14_employee_benefits"] = amount
+		case 15:
+			scheduleC["line15_insurance"] = amount
+		case 16:
+			scheduleC["line16_interest"] = amount
+		case 17:
+			scheduleC["line17_legal_professional"] = amount
+		case 18:
+			scheduleC["line18_office_expense"] = amount
+		case 19:
+			scheduleC["line19_pension_profit"] = amount
+		case 20:
+			scheduleC["line20_rent_lease"] = amount
+		case 21:
+			scheduleC["line21_repairs_maintenance"] = amount
+		case 22:
+			scheduleC["line22_supplies"] = amount
+		case 23:
+			scheduleC["line23_taxes_licenses"] = amount
+		case 24:
+			scheduleC["line24_travel_meals"] = amount
+		case 25:
+			scheduleC["line25_utilities"] = amount
+		case 26:
+			scheduleC["line26_wages"] = amount
+		case 27:
+			scheduleC["line27_other_expenses"] = amount
+		}
+
+		totalBusinessExpenses += amount
+	}
+
+	// Get business transaction counts
+	businessCountQuery := `
+		SELECT 
+			COUNT(CASE WHEN type = 'income' AND is_business = true THEN 1 END) as business_income_transactions,
+			COUNT(CASE WHEN type = 'expense' AND is_business = true THEN 1 END) as business_expense_transactions,
+			COUNT(CASE WHEN is_business = false THEN 1 END) as personal_transactions
+		FROM transactions
+	`
+
+	var businessIncomeCount, businessExpenseCount, personalCount int
+	err = db.QueryRow(businessCountQuery).Scan(&businessIncomeCount, &businessExpenseCount, &personalCount)
+	if err != nil {
+		log.Printf("Error getting business transaction counts: %v", err)
+	}
+
+	// Calculate net profit/loss for business only
+	netProfitLoss := businessIncome - totalBusinessExpenses
+
+	// Build response
+	response := map[string]interface{}{
+		"success": true,
+		"summary": map[string]interface{}{
+			"business_income":               businessIncome,
+			"business_expenses":             totalBusinessExpenses,
+			"net_profit_loss":               netProfitLoss,
+			"business_income_transactions":  businessIncomeCount,
+			"business_expense_transactions": businessExpenseCount,
+			"personal_transactions":         personalCount,
+		},
+		"schedule_c":       scheduleC,
+		"tax_year":         2024,
+		"calculation_date": time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	log.Printf("📊 Business Summary: Income $%.2f - Expenses $%.2f = Net Profit/Loss $%.2f",
+		businessIncome, totalBusinessExpenses, netProfitLoss)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
