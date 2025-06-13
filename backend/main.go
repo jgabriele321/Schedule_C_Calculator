@@ -99,6 +99,13 @@ type VendorRule struct {
 	CreatedAt     string `json:"created_at" db:"created_at"`
 }
 
+type ScheduleCCategory struct {
+	ID          int    `json:"id" db:"id"`
+	Name        string `json:"name" db:"name"`
+	LineNumber  int    `json:"line_number" db:"line_number"`
+	Description string `json:"description" db:"description"`
+}
+
 var db *sql.DB
 var openRouterAPIKey string
 
@@ -167,6 +174,8 @@ func main() {
 	r.Get("/summary", getScheduleCSummary)
 	r.Get("/business-summary", getBusinessSummary)
 	r.Post("/fix-income", fixIncomeTransactions)
+	r.Get("/categories", getScheduleCCategories)
+	r.Delete("/clear-all-data", clearAllData)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -238,7 +247,16 @@ func createTables() error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`
 
-	tables := []string{transactionsTable, csvFilesTable, vendorRulesTable, deductionDataTable}
+	// Create schedule_c_categories table
+	scheduleCCategoriesTable := `
+		CREATE TABLE IF NOT EXISTS schedule_c_categories (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			line_number INTEGER NOT NULL,
+			description TEXT NOT NULL
+		);`
+
+	tables := []string{transactionsTable, csvFilesTable, vendorRulesTable, deductionDataTable, scheduleCCategoriesTable}
 
 	for _, table := range tables {
 		_, err := db.Exec(table)
@@ -261,6 +279,101 @@ func createTables() error {
 
 	fmt.Println("📋 Database tables created successfully")
 	return nil
+}
+
+func initializeScheduleCCategories() error {
+	// Check if categories already exist
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM schedule_c_categories").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("error checking categories: %v", err)
+	}
+
+	// If categories already exist, don't reinitialize
+	if count > 0 {
+		return nil
+	}
+
+	// Default Schedule C categories based on IRS Form 1040 Schedule C
+	categories := []ScheduleCCategory{
+		{Name: "Advertising", LineNumber: 8, Description: "Advertising and marketing expenses"},
+		{Name: "Car and truck expenses", LineNumber: 9, Description: "Vehicle expenses for business use"},
+		{Name: "Commissions and fees", LineNumber: 10, Description: "Commissions and fees paid"},
+		{Name: "Contract labor", LineNumber: 11, Description: "Contract labor expenses"},
+		{Name: "Depletion", LineNumber: 12, Description: "Depletion expenses"},
+		{Name: "Depreciation", LineNumber: 13, Description: "Depreciation and section 179 expense deduction"},
+		{Name: "Employee benefit programs", LineNumber: 14, Description: "Employee benefit programs"},
+		{Name: "Insurance (other than health)", LineNumber: 15, Description: "Insurance expenses (other than health)"},
+		{Name: "Interest (mortgage)", LineNumber: 16, Description: "Mortgage interest paid to banks, etc."},
+		{Name: "Interest (other)", LineNumber: 17, Description: "Other interest expenses"},
+		{Name: "Legal and professional services", LineNumber: 18, Description: "Legal and professional services"},
+		{Name: "Office expense", LineNumber: 19, Description: "Office expenses"},
+		{Name: "Pension and profit-sharing plans", LineNumber: 20, Description: "Pension and profit-sharing plans"},
+		{Name: "Rent or lease (vehicles)", LineNumber: 21, Description: "Rent or lease of vehicles, machinery, and equipment"},
+		{Name: "Rent or lease (other)", LineNumber: 22, Description: "Rent or lease of other business property"},
+		{Name: "Repairs and maintenance", LineNumber: 23, Description: "Repairs and maintenance"},
+		{Name: "Supplies", LineNumber: 24, Description: "Supplies (not included in Part III)"},
+		{Name: "Taxes and licenses", LineNumber: 25, Description: "Taxes and licenses"},
+		{Name: "Travel and meals", LineNumber: 26, Description: "Travel, meals, and entertainment"},
+		{Name: "Utilities", LineNumber: 27, Description: "Utilities"},
+	}
+
+	// Insert categories into database
+	stmt, err := db.Prepare("INSERT INTO schedule_c_categories (name, line_number, description) VALUES (?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("error preparing statement: %v", err)
+	}
+	defer stmt.Close()
+
+	for _, category := range categories {
+		_, err = stmt.Exec(category.Name, category.LineNumber, category.Description)
+		if err != nil {
+			return fmt.Errorf("error inserting category %s: %v", category.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func getScheduleCCategories(w http.ResponseWriter, r *http.Request) {
+	// Initialize categories if they don't exist
+	err := initializeScheduleCCategories()
+	if err != nil {
+		log.Printf("Error initializing categories: %v", err)
+		http.Error(w, "Failed to initialize categories", http.StatusInternalServerError)
+		return
+	}
+
+	// Query all categories
+	rows, err := db.Query("SELECT id, name, line_number, description FROM schedule_c_categories ORDER BY line_number")
+	if err != nil {
+		log.Printf("Error querying categories: %v", err)
+		http.Error(w, "Failed to fetch categories", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var categories []ScheduleCCategory
+	for rows.Next() {
+		var category ScheduleCCategory
+		err := rows.Scan(&category.ID, &category.Name, &category.LineNumber, &category.Description)
+		if err != nil {
+			log.Printf("Error scanning category: %v", err)
+			continue
+		}
+		categories = append(categories, category)
+	}
+
+	if err = rows.Err(); err != nil {
+		log.Printf("Error iterating categories: %v", err)
+		http.Error(w, "Failed to fetch categories", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"categories": categories,
+	})
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
@@ -1748,6 +1861,56 @@ func getScheduleCSummary(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func clearAllData(w http.ResponseWriter, r *http.Request) {
+	// Clear all tables
+	tables := []string{"transactions", "csv_files", "vendor_rules", "deduction_data"}
+
+	var deletedCounts []map[string]interface{}
+
+	for _, table := range tables {
+		// Count records before deletion
+		var count int
+		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
+		err := db.QueryRow(countQuery).Scan(&count)
+		if err != nil {
+			log.Printf("Error counting records in %s: %v", table, err)
+			count = 0
+		}
+
+		// Delete all records from table
+		deleteQuery := fmt.Sprintf("DELETE FROM %s", table)
+		result, err := db.Exec(deleteQuery)
+		if err != nil {
+			log.Printf("Error clearing table %s: %v", table, err)
+			http.Error(w, fmt.Sprintf("Failed to clear table %s", table), http.StatusInternalServerError)
+			return
+		}
+
+		rowsAffected, _ := result.RowsAffected()
+		deletedCounts = append(deletedCounts, map[string]interface{}{
+			"table":          table,
+			"deleted_count":  rowsAffected,
+			"original_count": count,
+		})
+	}
+
+	// Reset auto-increment counters
+	_, err := db.Exec("DELETE FROM sqlite_sequence WHERE name IN ('vendor_rules', 'deduction_data', 'schedule_c_categories')")
+	if err != nil {
+		log.Printf("Warning: Could not reset auto-increment counters: %v", err)
+	}
+
+	log.Printf("🗑️ All data cleared successfully")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":        true,
+		"message":        "All data cleared successfully",
+		"cleared_tables": deletedCounts,
+		"timestamp":      time.Now().Format("2006-01-02 15:04:05"),
+	})
 }
 
 func fixIncomeTransactions(w http.ResponseWriter, r *http.Request) {

@@ -18,13 +18,15 @@ import {
   FileText,
   CreditCard,
   X,
-  Loader2,
   ChevronRight,
   ArrowUp,
   ArrowDown,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  Settings,
+  Trash2
 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -49,10 +51,12 @@ export function Dashboard() {
 
   // Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [sourceType, setSourceType] = useState<string>("expenses")
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [sourceType, setSourceType] = useState("expenses")
   const [uploading, setUploading] = useState(false)
-  const [uploadSuccess, setUploadSuccess] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: boolean}>({})
   const [dragActive, setDragActive] = useState(false)
   const [recentUploads, setRecentUploads] = useState<UploadedFile[]>([])
 
@@ -86,6 +90,15 @@ export function Dashboard() {
   const [recurringLoading, setRecurringLoading] = useState(false)
   const [recurringToggleLoading, setRecurringToggleLoading] = useState<string | null>(null)
   const [expandedMerchants, setExpandedMerchants] = useState<Set<string>>(new Set())
+
+  // IRS Categories state
+  const [irsCategories, setIrsCategories] = useState<any[]>([])
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false)
+  const [autoCategorizingTransactions, setAutoCategorizingTransactions] = useState<Set<string>>(new Set())
+
+  // Clear data modal state
+  const [showClearDataModal, setShowClearDataModal] = useState(false)
+  const [clearingData, setClearingData] = useState(false)
 
   useEffect(() => {
     // Load saved tab from localStorage
@@ -160,8 +173,83 @@ export function Dashboard() {
     // Load transactions when transactions tab is activated
     if (activeTab === "transactions" && hasData) {
       loadTransactions()
+      loadIrsCategories() // Load categories for dropdowns
     }
   }, [activeTab, hasData, loadTransactions])
+
+
+
+  // Auto-categorize uncategorized transactions using our best guess
+  const autoCategorizeBestGuess = useCallback(async () => {
+    try {
+      // Find uncategorized transactions
+      const uncategorized = transactions.filter(t => 
+        !t.category || t.category === 'uncategorized' || t.category === ''
+      )
+      
+      if (uncategorized.length === 0) return
+      
+      console.log(`🤖 Auto-categorizing ${uncategorized.length} uncategorized transactions...`)
+      
+      // Mark transactions as being auto-categorized
+      const uncategorizedIds = new Set(uncategorized.map(t => t.id))
+      setAutoCategorizingTransactions(uncategorizedIds)
+      
+      // Call the bulk categorization endpoint
+      const result = await api.post("/categorize", {})
+      
+      if (result.success && result.processed > 0) {
+        // Reload transactions to show updated categories
+        await loadTransactions()
+        console.log(`✅ Auto-categorized ${result.processed} transactions with best guesses`)
+      }
+    } catch (error) {
+      console.error("Failed to auto-categorize transactions:", error)
+    } finally {
+      setAutoCategorizingTransactions(new Set())
+    }
+  }, [transactions, loadTransactions])
+
+  // Manual trigger for auto-categorization
+  const triggerManualCategorization = async () => {
+    try {
+      console.log('🎯 Manually triggering auto-categorization...')
+      setAutoCategorizingTransactions(new Set())
+      
+      const result = await api.post("/categorize", {})
+      console.log('📋 Categorization result:', result)
+      
+      if (result.success && result.processed > 0) {
+        console.log(`✅ Auto-categorized ${result.processed} transactions with best guesses`)
+        // Reload transactions to show updated categories
+        await loadTransactions()
+      } else {
+        console.log('ℹ️ No transactions were categorized - they may already be categorized')
+      }
+    } catch (error) {
+      console.error("Failed to auto-categorize transactions:", error)
+    } finally {
+      setAutoCategorizingTransactions(new Set())
+    }
+  }
+
+  // Auto-categorize after transactions are loaded (more aggressive triggering)
+  useEffect(() => {
+    if (activeTab === "transactions" && transactions.length > 0) {
+      // Find uncategorized transactions
+      const uncategorized = transactions.filter(t => 
+        !t.category || t.category === 'uncategorized' || t.category === ''
+      )
+      
+      if (uncategorized.length > 0) {
+        console.log(`🤖 Found ${uncategorized.length} uncategorized transactions on transactions tab, auto-categorizing...`)
+        
+        // Trigger auto-categorization immediately
+        const timer = setTimeout(triggerManualCategorization, 1000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [activeTab, transactions.length])
 
   const loadSummary = async () => {
     try {
@@ -176,7 +264,7 @@ export function Dashboard() {
     }
   }
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
+  const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -184,76 +272,111 @@ export function Dashboard() {
     } else if (e.type === "dragleave") {
       setDragActive(false)
     }
-  }, [])
+  }
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      validateAndSetFile(file)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      validateAndSetFiles(e.dataTransfer.files)
     }
-  }, [])
+  }
 
   const validateAndSetFile = (file: File) => {
-    setUploadError(null)
-
-    // Validate file type
-    if (!file.name.toLowerCase().endsWith(".csv")) {
+    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
       setUploadError("Please select a CSV file")
-      return
+      return false
     }
-
-    // Validate file size (10MB max)
     if (file.size > 10 * 1024 * 1024) {
       setUploadError("File size must be less than 10MB")
-      return
+      return false
     }
+    return true
+  }
 
-    setSelectedFile(file)
+  const validateAndSetFiles = (files: FileList | File[]) => {
+    const fileArray = Array.from(files)
+    const validFiles: File[] = []
+    
+    for (const file of fileArray) {
+      if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+        setUploadError(`${file.name} is not a CSV file`)
+        return false
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setUploadError(`${file.name} is larger than 10MB`)
+        return false
+      }
+      validFiles.push(file)
+    }
+    
+    setSelectedFiles(validFiles)
+    setSelectedFile(validFiles[0] || null) // Keep single file for backward compatibility
+    setUploadError(null)
+    return true
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      validateAndSetFile(e.target.files[0])
+    const fileInput = e.target as HTMLInputElement
+    const files = fileInput.files
+    if (files && files.length > 0) {
+      validateAndSetFiles(files)
     }
+    // Allow multiple file selection
+    fileInput.setAttribute('multiple', 'true')
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) return
+    if (selectedFiles.length === 0) return
 
     try {
       setUploading(true)
       setUploadError(null)
+      setUploadProgress({})
 
-      await api.uploadCSV(selectedFile, sourceType)
+      // Use multi-file upload for better progress tracking
+      const result = await api.uploadMultipleCSV(selectedFiles, sourceType)
 
-      setUploadSuccess(true)
-      setSelectedFile(null)
-      setHasData(true)
-
-      // Add to recent uploads
-      const newUpload: UploadedFile = {
-        id: Date.now().toString(),
-        name: selectedFile.name,
-        size: selectedFile.size,
-        uploadDate: new Date().toISOString(),
-        transactionCount: 0, // Would come from API response
+      if (result.totalFailed > 0) {
+        const failedFiles = result.results.filter(r => !r.success).map(r => r.file).join(', ')
+        setUploadError(`${result.totalFailed} files failed to upload: ${failedFiles}`)
       }
-      setRecentUploads((prev) => [newUpload, ...prev.slice(0, 4)])
 
-      // Redirect to overview after successful upload
-      setTimeout(() => {
-        setActiveTab("overview")
-        setUploadSuccess(false)
-        loadSummary()
-      }, 2000)
+      if (result.totalUploaded > 0) {
+        setUploadSuccess(true)
+        setHasData(true)
+
+        // Add successful uploads to recent uploads
+        const successfulUploads = result.results
+          .filter(r => r.success)
+          .map((r, index) => ({
+            id: (Date.now() + index).toString(),
+            name: r.file,
+            size: selectedFiles.find(f => f.name === r.file)?.size || 0,
+            uploadDate: new Date().toISOString(),
+            transactionCount: r.result?.transactions_parsed || 0,
+          }))
+
+        setRecentUploads((prev) => [...successfulUploads, ...prev.slice(0, 4 - successfulUploads.length)])
+
+        // Clear selected files
+        setSelectedFiles([])
+        setSelectedFile(null)
+
+        // Stay on upload page and just update data status
+        setHasData(true)
+        setTimeout(() => {
+          setUploadSuccess(false)
+          loadSummary()
+        }, 3000)
+      }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed")
     } finally {
       setUploading(false)
+      setUploadProgress({})
     }
   }
 
@@ -385,6 +508,8 @@ export function Dashboard() {
     }
   }
 
+
+
   // Load recurring transactions
   const loadRecurringTransactions = async () => {
     setRecurringLoading(true)
@@ -457,6 +582,76 @@ export function Dashboard() {
     }
   }
 
+  const handleClearAllData = async () => {
+    console.log('🗑️ Clear data button clicked!')
+    setClearingData(true)
+    try {
+      console.log('🗑️ Calling API to clear data...')
+      const result = await api.delete('/clear-all-data')
+      console.log('🗑️ API response:', result)
+      
+      // Reset all state
+      setTransactions([])
+      setSummary(null)
+      setHasData(false)
+      setBusinessSummary(null)
+      setRecurringTransactions([])
+      setActiveTab("upload")
+      setShowClearDataModal(false)
+      
+      // Show success message
+      console.log('✅ All data cleared successfully!')
+      alert('All data has been cleared successfully!')
+    } catch (error) {
+      console.error('❌ Failed to clear data:', error)
+      alert('Failed to clear data: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setClearingData(false)
+    }
+  }
+
+  // Load IRS categories
+  const loadIrsCategories = async () => {
+    if (categoriesLoaded) return
+    
+    try {
+      const data = await api.get("/categories")
+      setIrsCategories(data.categories || [])
+      setCategoriesLoaded(true)
+    } catch (error) {
+      console.error("Failed to load IRS categories:", error)
+    }
+  }
+
+  // Update transaction category
+  const handleCategoryChange = async (transactionId: string, categoryName: string, lineNumber: number) => {
+    try {
+      setToggleLoading(`category-${transactionId}`)
+      
+      // Update via API
+      await api.post("/classify", {
+        transaction_id: transactionId,
+        category: categoryName,
+        schedule_c_line: lineNumber
+      })
+      
+      // Update local state optimistically
+      setTransactions(prev => 
+        prev.map(t => 
+          t.id === transactionId 
+            ? { ...t, category: categoryName, schedule_c_line: lineNumber } 
+            : t
+        )
+      )
+      
+      console.log(`✅ Category updated: ${categoryName} (Line ${lineNumber})`)
+    } catch (error) {
+      console.error(`Failed to update category for transaction ${transactionId}:`, error)
+    } finally {
+      setToggleLoading(null)
+    }
+  }
+
   const renderUpload = () => (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
@@ -472,7 +667,7 @@ export function Dashboard() {
             className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
               dragActive
                 ? "border-blue-500 bg-blue-900/20"
-                : selectedFile
+                : selectedFiles.length > 0
                   ? "border-green-500 bg-green-900/20"
                   : "border-gray-600 hover:border-blue-500 hover:bg-blue-900/10"
             }`}
@@ -484,29 +679,40 @@ export function Dashboard() {
             <input
               type="file"
               accept=".csv"
+              multiple
               onChange={handleFileSelect}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
 
             <div className="space-y-4">
-              {selectedFile ? (
+              {selectedFiles.length > 0 ? (
                 <>
                   <Check className="h-12 w-12 text-green-400 mx-auto" />
                   <div>
-                    <p className="text-lg font-medium text-green-300">{selectedFile.name}</p>
-                    <p className="text-sm text-green-400">{formatFileSize(selectedFile.size)}</p>
+                    <p className="text-lg font-medium text-green-300">
+                      {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} selected
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {selectedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-700/50 rounded text-sm">
+                          <span className="text-green-300">{file.name}</span>
+                          <span className="text-green-400">{formatFileSize(file.size)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation()
+                      setSelectedFiles([])
                       setSelectedFile(null)
                     }}
                     className="border-gray-600 text-gray-300 hover:bg-gray-700"
                   >
                     <X className="h-4 w-4 mr-2" />
-                    Remove
+                    Clear All
                   </Button>
                 </>
               ) : (
@@ -516,7 +722,7 @@ export function Dashboard() {
                     <p className="text-lg font-medium text-gray-200">
                       Drag and drop your CSV files here, or click to browse
                     </p>
-                    <p className="text-sm text-gray-400">CSV files only, max 10MB</p>
+                    <p className="text-sm text-gray-400">Multiple CSV files supported, max 10MB each</p>
                   </div>
                 </>
               )}
@@ -615,19 +821,19 @@ export function Dashboard() {
       <div className="text-center">
         <Button
           onClick={handleUpload}
-          disabled={!selectedFile || uploading}
+          disabled={selectedFiles.length === 0 || uploading}
           size="lg"
           className="px-8 bg-blue-600 hover:bg-blue-700 text-white"
         >
           {uploading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Processing...
+              Processing {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''}...
             </>
           ) : (
             <>
               <Upload className="h-4 w-4 mr-2" />
-              Upload and Process CSV
+              Upload and Process {selectedFiles.length > 0 ? `${selectedFiles.length} ` : ''}CSV{selectedFiles.length !== 1 ? 's' : ''}
             </>
           )}
         </Button>
@@ -1171,7 +1377,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Master Toggle */}
+        {/* Bulk Actions */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-gray-100">Bulk Actions</CardTitle>
@@ -1180,7 +1386,7 @@ export function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Checkbox
                   checked={allBusinessSelected}
@@ -1225,21 +1431,67 @@ export function Dashboard() {
               <div className="space-y-2">
                 {transactions.map((transaction: any) => (
                   <div key={transaction.id} className="flex items-center justify-between py-3 px-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      <div className="text-sm text-gray-300">
+                    <div className="flex items-center space-x-4 flex-1">
+                      <div className="text-sm text-gray-300 min-w-[80px]">
                         {new Date(transaction.date).toLocaleDateString()}
                       </div>
-                      <div className="text-sm text-gray-100 max-w-xs truncate">
+                      <div className="text-sm text-gray-100 max-w-[200px] truncate">
                         {transaction.vendor || transaction.description || 'Unknown'}
                       </div>
-                      <div className={`text-sm font-medium ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                      <div className={`text-sm font-medium min-w-[80px] ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
                         {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
                       </div>
-                      {transaction.category && (
-                        <div className="text-xs px-2 py-1 bg-gray-600 text-gray-300 rounded">
-                          {transaction.category}
+                      
+                      {/* IRS Category Dropdown */}
+                      <div className="flex items-center space-x-2 min-w-[180px]">
+                        <div className="relative w-full">
+                          <Select
+                            value={transaction.category || ""}
+                            onValueChange={(value) => {
+                              if (value === "other") {
+                                handleCategoryChange(transaction.id, "Other expenses", 27)
+                              } else {
+                                const category = irsCategories.find(cat => cat.name === value)
+                                if (category) {
+                                  handleCategoryChange(transaction.id, category.name, category.line_number)
+                                }
+                              }
+                            }}
+                            disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
+                          >
+                            <SelectTrigger className={`w-full h-8 text-xs bg-gray-700 border-gray-600 text-white ${
+                              transaction.category && transaction.category !== 'uncategorized' 
+                                ? 'border-green-600 bg-green-900/20' 
+                                : autoCategorizingTransactions.has(transaction.id) 
+                                  ? 'border-blue-600 bg-blue-900/20' 
+                                  : ''
+                            }`}>
+                              <SelectValue placeholder={
+                                autoCategorizingTransactions.has(transaction.id) 
+                                  ? "Auto-categorizing..." 
+                                  : "Select category..."
+                              } />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-700 border-gray-600">
+                              {irsCategories.map((category) => (
+                                <SelectItem key={category.id} value={category.name} className="text-white hover:bg-gray-600">
+                                  {category.name} (L{category.line_number})
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="other" className="text-white hover:bg-gray-600">
+                                Other expenses (L27)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {/* Visual indicator for categorized transactions */}
+                          {transaction.category && transaction.category !== 'uncategorized' && (
+                            <div className="absolute -right-1 -top-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                          )}
                         </div>
-                      )}
+                        {(toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)) && (
+                          <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
+                        )}
+                      </div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
@@ -1304,10 +1556,7 @@ export function Dashboard() {
     )
   }
 
-  const renderCategories = () => {
-    // Categories render logic would go here  
-    return <div>Categories content</div>
-  }
+
 
   const renderExport = () => {
     // Export render logic would go here
@@ -1339,8 +1588,6 @@ export function Dashboard() {
         return renderTransactions()
       case "recurring":
         return renderRecurring()
-      case "categories":
-        return renderCategories()
       case "export":
         return renderExport()
       default:
@@ -1381,19 +1628,6 @@ export function Dashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("overview")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "overview"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span className="text-sm font-medium">Overview</span>
-            {activeTab === "overview" && <ChevronRight className="h-3 w-3 ml-auto" />}
-          </button>
-
-          <button
             onClick={() => setActiveTab("transactions")}
             className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "transactions"
@@ -1420,17 +1654,19 @@ export function Dashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("categories")}
+            onClick={() => setActiveTab("overview")}
             className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "categories"
+              activeTab === "overview"
                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
                 : "text-gray-300 hover:bg-gray-700/50"
             }`}
           >
-            <Tags className="h-4 w-4" />
-            <span className="text-sm font-medium">Categories</span>
-            {activeTab === "categories" && <ChevronRight className="h-3 w-3 ml-auto" />}
+            <BarChart3 className="h-4 w-4" />
+            <span className="text-sm font-medium">Overview</span>
+            {activeTab === "overview" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
+
+
 
           <button
             onClick={() => setActiveTab("export")}
@@ -1450,7 +1686,7 @@ export function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 border-b border-gray-700 bg-gray-800 px-8 flex items-center sticky top-0 z-10">
+        <header className="h-14 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-between sticky top-0 z-10">
           <div>
             <h1 className="text-lg font-semibold text-gray-100">
               {activeTab === "upload" && "Upload CSV Files"}
@@ -1469,6 +1705,20 @@ export function Dashboard() {
               {activeTab === "export" && "Download reports and tax forms"}
             </p>
           </div>
+          
+                      {/* Delete All Data Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log('🗑️ Trash can clicked - opening delete modal')
+                setShowClearDataModal(true)
+              }}
+              className="border-gray-600 text-gray-300 hover:bg-red-700 hover:text-white hover:border-red-600"
+              title="Delete all data"
+            >
+              <Trash2 className="h-4 w-4" />
+          </Button>
         </header>
 
         {/* Main content */}
@@ -1478,6 +1728,169 @@ export function Dashboard() {
           </div>
         </main>
       </div>
+
+      {/* Clear Data Modal - Complete CSS Override */}
+      {showClearDataModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%',
+              margin: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e5e5e5'
+            }}
+          >
+            <h2
+              style={{
+                fontSize: '20px',
+                fontWeight: 'bold',
+                color: '#111827',
+                marginBottom: '16px',
+                margin: 0
+              }}
+            >
+              Delete All Data
+            </h2>
+            <p
+              style={{
+                color: '#374151',
+                marginBottom: '24px',
+                lineHeight: '1.5',
+                margin: '0 0 24px 0'
+              }}
+            >
+              Are you sure you want to delete all data? This action cannot be undone and will remove:
+            </p>
+            <ul
+              style={{
+                color: '#374151',
+                marginBottom: '24px',
+                marginLeft: '20px',
+                lineHeight: '1.6'
+              }}
+            >
+              <li>All transactions</li>
+              <li>All uploaded CSV files</li>
+              <li>All vendor rules</li>
+              <li>All deduction data</li>
+            </ul>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px'
+              }}
+            >
+              <button
+                onClick={() => setShowClearDataModal(false)}
+                disabled={clearingData}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: clearingData ? 'not-allowed' : 'pointer',
+                  opacity: clearingData ? 0.5 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!clearingData) {
+                    e.currentTarget.style.backgroundColor = '#f9fafb'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!clearingData) {
+                    e.currentTarget.style.backgroundColor = '#ffffff'
+                  }
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearAllData}
+                disabled={clearingData}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: clearingData ? 'not-allowed' : 'pointer',
+                  opacity: clearingData ? 0.5 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseEnter={(e) => {
+                  if (!clearingData) {
+                    e.currentTarget.style.backgroundColor = '#b91c1c'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!clearingData) {
+                    e.currentTarget.style.backgroundColor = '#dc2626'
+                  }
+                }}
+              >
+                {clearingData ? (
+                  <>
+                    <svg 
+                      style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} 
+                      fill="none" 
+                      viewBox="0 0 24 24"
+                    >
+                      <circle 
+                        style={{ opacity: 0.25 }} 
+                        cx="12" 
+                        cy="12" 
+                        r="10" 
+                        stroke="currentColor" 
+                        strokeWidth="4"
+                      />
+                      <path 
+                        style={{ opacity: 0.75 }} 
+                        fill="currentColor" 
+                        d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete All Data'
+                )}
+              </button>
+            </div>
+          </div>
+          <style>{`
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   )
 }

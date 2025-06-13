@@ -17,6 +17,15 @@ export const api = {
     return response.json()
   },
 
+  async delete(endpoint: string) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    })
+    if (!response.ok) throw new Error("API call failed")
+    return response.json()
+  },
+
   async uploadCSV(file: File, source: string) {
     const formData = new FormData()
     formData.append("file", file)
@@ -28,6 +37,41 @@ export const api = {
     })
     if (!response.ok) throw new Error("Upload failed")
     return response.json()
+  },
+
+  async uploadMultipleCSV(files: File[], source: string): Promise<{
+    results: Array<{ file: string; success: boolean; result?: any; error?: string }>
+    totalUploaded: number
+    totalFailed: number
+  }> {
+    const results: Array<{ file: string; success: boolean; result?: any; error?: string }> = []
+    let totalUploaded = 0
+    let totalFailed = 0
+
+    for (const file of files) {
+      try {
+        const result = await this.uploadCSV(file, source)
+        results.push({
+          file: file.name,
+          success: true,
+          result: result
+        })
+        totalUploaded++
+      } catch (error) {
+        results.push({
+          file: file.name,
+          success: false,
+          error: error instanceof Error ? error.message : "Upload failed"
+        })
+        totalFailed++
+      }
+    }
+
+    return {
+      results,
+      totalUploaded,
+      totalFailed
+    }
   },
 
   async toggleBusiness(transactionId: string, isBusiness: boolean) {
@@ -49,4 +93,6 @@ export const api = {
       ...(filters?.idList && { id_list: filters.idList }),
     })
   },
+
+
 }
