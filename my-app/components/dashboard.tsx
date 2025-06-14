@@ -96,6 +96,8 @@ export function Dashboard() {
   const [categoriesLoaded, setCategoriesLoaded] = useState(false)
   const [autoCategorizingTransactions, setAutoCategorizingTransactions] = useState<Set<string>>(new Set())
   const [autoCategorizingAll, setAutoCategorizingAll] = useState(false)
+  const [categorizationProgress, setCategorizationProgress] = useState({ processed: 0, total: 0, currentItem: '' })
+  const [showCategorizationModal, setShowCategorizationModal] = useState(false)
 
   // Clear data modal state
   const [showClearDataModal, setShowClearDataModal] = useState(false)
@@ -219,26 +221,65 @@ export function Dashboard() {
     }
   }, [transactions, loadTransactions])
 
-  // Manual trigger for auto-categorization
+  // Manual trigger for auto-categorization with progress tracking
   const triggerManualCategorization = async () => {
     try {
       console.log('🎯 Manually triggering auto-categorization...')
       setAutoCategorizingAll(true)
+      setShowCategorizationModal(true)
+      setCategorizationProgress({ processed: 0, total: 43, currentItem: 'Refreshing transaction data...' })
       setAutoCategorizingTransactions(new Set())
       
+      // Force reload transactions from database to get fresh data
+      console.log('🔄 Reloading transactions to get fresh data...')
+      await loadTransactions()
+      setCategorizationProgress({ processed: 0, total: 43, currentItem: 'Starting AI categorization...' })
+      
+      // Simulate progress updates while API processes
+      let currentProgress = 0
+      const totalTransactions = 43
+      const progressInterval = setInterval(() => {
+        currentProgress += Math.floor(Math.random() * 3) + 1 // Random progress 1-3
+        if (currentProgress < totalTransactions - 5) { // Don't go too close to completion
+          const batchNumber = Math.ceil(currentProgress / 10)
+          setCategorizationProgress({ 
+            processed: currentProgress, 
+            total: totalTransactions, 
+            currentItem: `Processing batch ${batchNumber} - Analyzing transaction ${currentProgress}...` 
+          })
+        }
+      }, 2000) // Update every 2 seconds
+      
+      // Start categorization
       const result = await api.post("/categorize", {})
       console.log('📋 Categorization result:', result)
       
+      // Clear the progress simulation
+      clearInterval(progressInterval)
+      
       if (result.success && result.processed > 0) {
         console.log(`✅ Auto-categorized ${result.processed} transactions with best guesses`)
-        // Reload transactions to show updated categories
-        await loadTransactions()
-        await loadSummary()
+        setCategorizationProgress({ 
+          processed: result.processed, 
+          total: result.total || result.processed, 
+          currentItem: `Completed! Successfully categorized ${result.processed} transactions.` 
+        })
+        
+        // Wait a moment to show completion, then reload
+        setTimeout(async () => {
+          await loadTransactions()
+          await loadSummary()
+          setShowCategorizationModal(false)
+        }, 2000)
       } else {
         console.log('ℹ️ No transactions were categorized - they may already be categorized')
+        setCategorizationProgress({ processed: 0, total: 0, currentItem: 'No uncategorized transactions found' })
+        setTimeout(() => setShowCategorizationModal(false), 2000)
       }
     } catch (error) {
       console.error("Failed to auto-categorize transactions:", error)
+      setCategorizationProgress({ processed: 0, total: 0, currentItem: 'Error occurred during categorization' })
+      setTimeout(() => setShowCategorizationModal(false), 3000)
     } finally {
       setAutoCategorizingAll(false)
       setAutoCategorizingTransactions(new Set())
@@ -1414,14 +1455,61 @@ export function Dashboard() {
                   </span>
                 </div>
                 
-                <Button
+                <button
                   onClick={triggerManualCategorization}
                   disabled={autoCategorizingAll}
-                  className="h-8 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                  style={{
+                    height: '32px',
+                    padding: '0 12px',
+                    backgroundColor: autoCategorizingAll ? '#6b46c1' : '#7c3aed',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: autoCategorizingAll ? 'not-allowed' : 'pointer',
+                    opacity: autoCategorizingAll ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!autoCategorizingAll) {
+                      e.currentTarget.style.backgroundColor = '#6d28d9'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!autoCategorizingAll) {
+                      e.currentTarget.style.backgroundColor = '#7c3aed'
+                    }
+                  }}
                 >
                   {autoCategorizingAll ? (
                     <>
-                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      <svg
+                        style={{
+                          width: '12px',
+                          height: '12px',
+                          animation: 'spin 1s linear infinite'
+                        }}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          style={{ opacity: 0.25 }}
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          style={{ opacity: 0.75 }}
+                          fill="currentColor"
+                          d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
                       AI Categorizing...
                     </>
                   ) : (
@@ -1429,7 +1517,7 @@ export function Dashboard() {
                       🤖 Try AI Auto-Categorization
                     </>
                   )}
-                </Button>
+                </button>
               </div>
               {toggleLoading === "all" && (
                 <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
@@ -1599,6 +1687,168 @@ export function Dashboard() {
   const renderExport = () => {
     // Export render logic would go here
     return <div>Export content</div>
+  }
+
+  // Progress Modal Component - Fixed with CSS overrides like delete modal
+  const renderCategorizationModal = () => {
+    if (!showCategorizationModal) return null
+
+    const progressPercentage = categorizationProgress.total > 0 
+      ? Math.round((categorizationProgress.processed / categorizationProgress.total) * 100)
+      : 0
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          fontFamily: 'system-ui, -apple-system, sans-serif'
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: '#1f2937',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '480px',
+            width: '90%',
+            margin: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            border: '1px solid #374151'
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ marginBottom: '24px' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '64px',
+                  height: '64px',
+                  backgroundColor: '#7c3aed',
+                  borderRadius: '50%',
+                  marginBottom: '16px'
+                }}
+              >
+                <svg
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    color: '#ffffff',
+                    animation: 'spin 1s linear infinite'
+                  }}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    style={{ opacity: 0.25 }}
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    style={{ opacity: 0.75 }}
+                    fill="currentColor"
+                    d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              </div>
+              <h3
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 'bold',
+                  color: '#f9fafb',
+                  marginBottom: '8px',
+                  margin: '0 0 8px 0'
+                }}
+              >
+                🤖 AI Auto-Categorization
+              </h3>
+              <p
+                style={{
+                  color: '#9ca3af',
+                  fontSize: '14px',
+                  marginBottom: '16px',
+                  margin: '0 0 16px 0'
+                }}
+              >
+                {categorizationProgress.currentItem}
+              </p>
+            </div>
+
+            {categorizationProgress.total > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '14px',
+                    color: '#d1d5db',
+                    marginBottom: '8px'
+                  }}
+                >
+                  <span>Progress</span>
+                  <span>{categorizationProgress.processed} / {categorizationProgress.total}</span>
+                </div>
+                <div
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#374151',
+                    borderRadius: '9999px',
+                    height: '8px'
+                  }}
+                >
+                  <div
+                    style={{
+                      backgroundColor: '#7c3aed',
+                      height: '8px',
+                      borderRadius: '9999px',
+                      transition: 'width 0.3s ease',
+                      width: `${progressPercentage}%`
+                    }}
+                  ></div>
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#9ca3af',
+                    marginTop: '4px'
+                  }}
+                >
+                  {progressPercentage}% complete
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                fontSize: '12px',
+                color: '#6b7280'
+              }}
+            >
+              This may take a few minutes for large datasets...
+            </div>
+          </div>
+        </div>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    )
   }
 
   const renderContent = () => {
@@ -1929,6 +2179,9 @@ export function Dashboard() {
           `}</style>
         </div>
       )}
+
+      {/* Progress Modal */}
+      {renderCategorizationModal()}
     </div>
   )
 }

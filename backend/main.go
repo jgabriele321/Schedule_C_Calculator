@@ -1128,24 +1128,58 @@ func categorizeUncategorizedTransactions() error {
 		return nil
 	}
 
-	// Process transactions in batches
+	// Process transactions in batches of 10 for better performance
+	batchSize := 10
 	processed := 0
-	for _, tx := range transactions {
-		classification, err := classifyTransactionWithLLM(tx)
+
+	for i := 0; i < len(transactions); i += batchSize {
+		end := i + batchSize
+		if end > len(transactions) {
+			end = len(transactions)
+		}
+
+		batch := transactions[i:end]
+		log.Printf("🔄 Processing batch %d-%d of %d transactions...", i+1, end, len(transactions))
+
+		// Classify batch with LLM
+		classifications, err := classifyTransactionsBatchWithLLM(batch)
 		if err != nil {
-			log.Printf("Failed to classify transaction %s: %v", tx.ID, err)
+			log.Printf("Failed to classify batch: %v", err)
+			// Fall back to individual processing for this batch
+			for _, tx := range batch {
+				classification, err := classifyTransactionWithLLM(tx)
+				if err != nil {
+					log.Printf("Failed to classify transaction %s: %v", tx.ID, err)
+					continue
+				}
+
+				err = updateTransactionClassification(tx.ID, classification)
+				if err != nil {
+					log.Printf("Failed to update transaction %s: %v", tx.ID, err)
+					continue
+				}
+
+				processed++
+				log.Printf("🏷️ Classified: %s -> %s (Line %d)", tx.Vendor, classification.Category, classification.ScheduleCLine)
+			}
 			continue
 		}
 
-		// Update transaction with classification
-		err = updateTransactionClassification(tx.ID, classification)
-		if err != nil {
-			log.Printf("Failed to update transaction %s: %v", tx.ID, err)
-			continue
-		}
+		// Update transactions with batch classifications
+		for _, tx := range batch {
+			if classification, exists := classifications[tx.ID]; exists {
+				err = updateTransactionClassification(tx.ID, classification)
+				if err != nil {
+					log.Printf("Failed to update transaction %s: %v", tx.ID, err)
+					continue
+				}
 
-		processed++
-		log.Printf("🏷️ Classified: %s -> %s (Line %d)", tx.Vendor, classification.Category, classification.ScheduleCLine)
+				processed++
+				log.Printf("🏷️ Classified: %s -> %s (Line %d)", tx.Vendor, classification.Category, classification.ScheduleCLine)
+			} else {
+				log.Printf("⚠️ No classification found for transaction %s", tx.ID)
+			}
+		}
 	}
 
 	log.Printf("✅ Auto-categorization completed: %d/%d transactions processed", processed, len(transactions))
@@ -1253,6 +1287,174 @@ func classifyTransaction(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Batch classify multiple transactions for better performance
+func classifyTransactionsBatchWithLLM(transactions []Transaction) (map[string]*ExpenseClassification, error) {
+	if len(transactions) == 0 {
+		return make(map[string]*ExpenseClassification), nil
+	}
+
+	// Build batch prompt
+	var transactionList strings.Builder
+	for i, tx := range transactions {
+		transactionList.WriteString(fmt.Sprintf(`
+Transaction %d:
+- ID: %s
+- Vendor: %s
+- Amount: $%.2f
+- Description: %s`, i+1, tx.ID, tx.Vendor, tx.Amount, tx.Purpose))
+	}
+
+	prompt := fmt.Sprintf(`You are an expert tax accountant specializing in Schedule C business expenses. 
+
+Please categorize these %d business transactions and provide the corresponding IRS Schedule C line numbers:
+%s
+
+For EACH transaction, provide a JSON object with:
+1. transaction_id: The exact ID provided
+2. category: Must be one of the exact categories listed below
+3. schedule_c_line: IRS Schedule C line number (MUST be 8-27, NEVER use 0)
+4. expensable: true/false if this is a legitimate business expense
+5. purpose: Brief business purpose description
+6. confidence: 0.0-1.0 confidence score
+
+REQUIRED CATEGORIES (use exact names):
+- Line 8: "Advertising"
+- Line 9: "Car and truck"
+- Line 10: "Commissions and fees"
+- Line 11: "Contractors"
+- Line 15: "Insurance"
+- Line 16: "Interest paid"
+- Line 17: "Legal fees and professional services"
+- Line 18: "Office expenses"
+- Line 20: "Rent and lease"
+- Line 21: "Repairs and maintenance"
+- Line 22: "Supplies"
+- Line 23: "Taxes and licenses"
+- Line 24: "Meals"
+- Line 25: "Travel expenses"
+- Line 26: "Utilities"
+- Line 27: "Other business expenses"
+
+CRITICAL RULES:
+- NEVER use Line 0 or any number outside 8-27
+- If uncertain about the category, ALWAYS use "Other business expenses" (Line 27)
+- If you think it's not a business expense, still use Line 27 and set expensable: false
+- The schedule_c_line MUST be between 8 and 27 (inclusive)
+
+Return a JSON array with one object per transaction:
+[
+  {
+    "transaction_id": "exact_id_from_input",
+    "category": "category_name",
+    "schedule_c_line": number,
+    "expensable": boolean,
+    "purpose": "description",
+    "confidence": number
+  }
+]`, len(transactions), transactionList.String())
+
+	requestBody := OpenRouterRequest{
+		Model: "anthropic/claude-3.5-sonnet",
+		Messages: []Message{
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+openRouterAPIKey)
+	req.Header.Set("HTTP-Referer", "https://github.com/jgabriele321/Schedule_C_Calculator")
+	req.Header.Set("X-Title", "Schedule C Calculator")
+
+	client := &http.Client{Timeout: 60 * time.Second} // Increased timeout for batch processing
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("OpenRouter API error %d: %s", resp.StatusCode, string(body))
+	}
+
+	var openRouterResp OpenRouterResponse
+	if err := json.NewDecoder(resp.Body).Decode(&openRouterResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	if len(openRouterResp.Choices) == 0 {
+		return nil, fmt.Errorf("no response from LLM")
+	}
+
+	content := openRouterResp.Choices[0].Message.Content
+
+	// Clean up the content - remove markdown code blocks if present
+	content = strings.TrimSpace(content)
+	if strings.HasPrefix(content, "```json") {
+		content = strings.TrimPrefix(content, "```json")
+	}
+	if strings.HasPrefix(content, "```") {
+		content = strings.TrimPrefix(content, "```")
+	}
+	if strings.HasSuffix(content, "```") {
+		content = strings.TrimSuffix(content, "```")
+	}
+	content = strings.TrimSpace(content)
+
+	// Parse as array of classifications
+	type BatchClassification struct {
+		TransactionID string  `json:"transaction_id"`
+		Category      string  `json:"category"`
+		ScheduleCLine int     `json:"schedule_c_line"`
+		Expensable    bool    `json:"expensable"`
+		Purpose       string  `json:"purpose"`
+		Confidence    float64 `json:"confidence"`
+	}
+
+	var batchResults []BatchClassification
+	if err := json.Unmarshal([]byte(content), &batchResults); err != nil {
+		return nil, fmt.Errorf("failed to parse batch classification JSON: %v", err)
+	}
+
+	// Convert to map and validate
+	results := make(map[string]*ExpenseClassification)
+	for _, result := range batchResults {
+		classification := &ExpenseClassification{
+			Category:      result.Category,
+			ScheduleCLine: result.ScheduleCLine,
+			Expensable:    result.Expensable,
+			Purpose:       result.Purpose,
+			Confidence:    result.Confidence,
+		}
+
+		// Validate and fix schedule_c_line - never allow Line 0
+		if classification.ScheduleCLine < 8 || classification.ScheduleCLine > 27 {
+			log.Printf("⚠️ Invalid schedule_c_line %d for transaction %s, converting to Line 27 (Other business expenses)",
+				classification.ScheduleCLine, result.TransactionID)
+			classification.ScheduleCLine = 27
+			classification.Category = "Other business expenses"
+		}
+
+		results[result.TransactionID] = classification
+	}
+
+	return results, nil
+}
+
+// Individual transaction classification (fallback for batch failures)
 func classifyTransactionWithLLM(tx Transaction) (*ExpenseClassification, error) {
 	prompt := fmt.Sprintf(`You are an expert tax accountant specializing in Schedule C business expenses. 
 
