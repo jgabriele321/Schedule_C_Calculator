@@ -222,7 +222,7 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 - Automatic trigger when transactions load and categories are available
 - Maintains all manual override capabilities through dropdowns
 
-## ✅ **CRITICAL BUG FIXED: API Connection Resolved!** 
+**CRITICAL BUG FIXED: API Connection Resolved!** 
 
 **Issue Discovered**: Frontend toggle buttons were failing with "API call failed" errors
 **Root Cause**: Backend CORS configuration only allowed `http://localhost:3000`, but frontend runs on `3001`
@@ -254,7 +254,7 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 - Optimistic UI updates with loading indicators
 - Clean dropdown styling with dark theme
 
-## ⚡ **PERFORMANCE FIXES COMPLETED: Toggle System Optimized!** 
+**PERFORMANCE FIXES COMPLETED: Toggle System Optimized!** 
 
 **Issue 2**: Slow toggle performance and confusing master toggle logic
 **Root Cause**: Inefficient state updates and unclear "more than half" logic
@@ -269,7 +269,7 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 
 **🚀 READY FOR TASK 2.3**: Amount-based sorting to continue Sprint 2 momentum!
 
-## ⚡ **UI/UX IMPROVEMENTS COMPLETED: Checkbox System & Performance!** 
+**UI/UX IMPROVEMENTS COMPLETED: Checkbox System & Performance!** 
 
 **User Feedback**: "Toggle is slow and cumbersome, too much space for Vendor tab"
 
@@ -296,7 +296,7 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 - ❌ **User Experience**: Missing key user-friendly features
 - ⚠️ **CSS Issues**: Still experiencing some styling problems (`border-border` errors persist)
 
-## 🚨 **NEW CRITICAL ISSUE IDENTIFIED: Overview Calculation Bug**
+**NEW CRITICAL ISSUE IDENTIFIED: Overview Calculation Bug**
 
 **Problem**: Overview page showing only 50 transactions instead of all 907 in database
 **User Report**: "I have every item checked in the database and this is what overview page says... it's only taking 50 transactions for some reason"
@@ -321,7 +321,7 @@ The project aims to build a **Schedule C Desktop Tax Assistant** to help small b
 
 **Priority**: HIGH - This breaks the core business calculation functionality
 
-## 🔍 **ROOT CAUSE IDENTIFIED: Backend PageSize Limit Bug**
+**ROOT CAUSE IDENTIFIED: Backend PageSize Limit Bug**
 
 **Investigation Results**:
 ✅ Frontend `calculateBusinessSummary()` function is correct - calls `/transactions?pageSize=10000`
@@ -353,7 +353,7 @@ if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
 
 **Priority**: CRITICAL - This completely breaks business expense calculations
 
-## ✅ **EXECUTOR PROGRESS: Core Features Implementation**
+**EXECUTOR PROGRESS: Core Features Implementation**
 
 **✅ COMPLETED TASKS:**
 
@@ -706,3 +706,122 @@ if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
 
 ## Executor's Feedback or Assistance Requests
 - Ready to begin with backend changes unless otherwise directed.
+
+## Background and Motivation (PLANNER UPDATE - Automatic Categorization Investigation)
+
+**NEW CRITICAL ISSUE IDENTIFIED**: Automatic transaction categorization is not working as expected despite implementation.
+
+**INVESTIGATION RESULTS** ✅:
+
+**Root Cause Analysis**:
+1. ✅ **Automatic categorization IS working** - Backend logs show successful LLM classifications
+2. ✅ **Frontend implementation is correct** - `autoCategorizeBestGuess()` function properly calls `/categorize` endpoint
+3. ✅ **API endpoint is functional** - `/categorize` endpoint responds correctly
+4. ❌ **Issue: All transactions are already categorized** - No "uncategorized" transactions remain for auto-categorization
+5. ❌ **Issue: Categories don't match user requirements** - Current categories are generic IRS categories, not user's specific list
+
+**INVESTIGATION UPDATE** ✅:
+6. ✅ **New categories successfully implemented** - Backend now returns user's 16 categories
+7. ✅ **Backend upload working** - CSV upload processes successfully (2 transactions from test file)
+8. ❌ **Problem: Existing transactions have old categories** - Transactions show "Entertainment-Associations", "Restaurant-Restaurant", etc.
+9. ❌ **Auto-categorization skips them** - `/categorize` endpoint says "No uncategorized transactions found"
+10. ✅ **Categories reset successfully** - All transactions set to "uncategorized"
+11. ✅ **Auto-categorization working** - Processed 45 transactions successfully
+12. ❌ **NEW ISSUE: Some transactions still uncategorized** - User reports seeing uncategorized transactions
+
+**PLANNER ANALYSIS - Why Some Transactions Remain Uncategorized**:
+
+From the backend logs, I can see the LLM categorization process working:
+
+**Successful Categorizations**:
+- `🏷️ Classified: IKEA.COM BALTIMORE -> Office expenses (Line 18)` ✅
+- `🏷️ Classified: SHELL SERVICE STATIOSOMERSET -> Car and truck (Line 9)` ✅
+- `🏷️ Classified: DELTA AIR LINES -> Travel expenses (Line 24)` ✅
+- `🏷️ Classified: BILLS OYSTER 00AUSTIN -> Line 24: "Meals" (Line 24)` ✅
+
+**Problematic Categorizations**:
+- `🏷️ Classified: SUPER KING SAUNA 00-PALISADES PK -> Other business expenses (Line 0)` ❌
+- `🏷️ Classified: CVS PHARMACY NORTH ARLINGTON -> Other business expenses (Line 0)` ❌
+- `🏷️ Classified: Test Income -> Other business expenses (Line 0)` ❌
+- `🏷️ Classified: Test Transaction -> Other business expenses (Line 0)` ❌
+
+**ROOT CAUSE IDENTIFIED**: 
+The LLM is sometimes returning `Line 0` instead of valid Schedule C line numbers (8-27). When `schedule_c_line = 0`, the transaction effectively remains uncategorized because Line 0 is not a valid business expense line.
+
+**Why This Happens**:
+1. **LLM Uncertainty**: When the LLM is unsure if something is a legitimate business expense, it returns `Line 0`
+2. **Personal vs Business**: Items like "SUPER KING SAUNA" and "CVS PHARMACY" might be flagged as personal expenses
+3. **Test Data**: "Test Income" and "Test Transaction" are generic names that confuse the LLM
+
+**Solutions Needed**:
+1. **Update LLM Prompt**: Clarify that uncertain items should use "Other business expenses (Line 27)" instead of Line 0
+2. **Backend Logic**: Treat Line 0 responses as "Other business expenses" automatically
+3. **Validation**: Add validation to ensure all business transactions get valid line numbers (8-27)
+
+**Impact**: This explains why user sees "uncategorized" transactions - they have `schedule_c_line = 0` which makes them appear uncategorized in the frontend.
+
+## High-level Task Breakdown (PLANNER UPDATE)
+
+### 🚨 **CRITICAL TASK: Fix Category System**
+**Goal**: Update categories to match user requirements and re-categorize existing transactions
+
+**Sub-tasks**:
+1. **Update Backend Categories** ✅ COMPLETED
+   - Replace current 20 categories with user's 16 specific categories
+   - Update `initializeScheduleCCategories()` function in `backend/main.go`
+   - Map categories to correct Schedule C line numbers
+   - **Success Criteria**: `/categories` endpoint returns user's 16 categories ✅
+
+2. **Reset Transaction Categories** ⏳ IN PROGRESS
+   - Set all existing transaction categories to "uncategorized" 
+   - This will trigger automatic re-categorization with new categories
+   - **Success Criteria**: All transactions show as uncategorized, ready for re-categorization
+
+3. **Test Automatic Re-categorization** ⏳ READY
+   - Trigger `/categorize` endpoint to re-categorize all transactions with new categories
+   - Verify LLM uses new category list in prompts
+   - **Success Criteria**: Transactions get categorized using user's 16 categories
+
+4. **Update Frontend Category Display** ⏳ READY
+   - Ensure dropdown menus show new categories
+   - Update any hardcoded category references
+   - **Success Criteria**: Frontend displays user's 16 categories in dropdowns
+
+**Priority**: CRITICAL - This explains why user thinks auto-categorization isn't working
+
+### 🔧 **IMMEDIATE EXECUTOR TASK: Reset Transaction Categories**
+**Goal**: Set all transaction categories to "uncategorized" so they can be re-categorized
+
+**SQL Command Needed**:
+```sql
+UPDATE transactions SET category = 'uncategorized';
+```
+
+**Steps**:
+1. Execute SQL to reset all transaction categories
+2. Test `/categorize` endpoint - should now find uncategorized transactions
+3. Verify automatic re-categorization works with new categories
+4. Test frontend upload and auto-categorization flow
+
+### 🚨 **NEW CRITICAL TASK: Fix Line 0 Issue**
+**Goal**: Prevent LLM from returning Line 0 which causes transactions to appear uncategorized
+
+**Root Cause**: LLM returns `schedule_c_line = 0` for uncertain transactions, making them appear uncategorized
+
+**Sub-tasks**:
+1. **Update LLM Prompt** ⏳ URGENT
+   - Modify prompt to explicitly state: "Never use Line 0. If uncertain, use Line 27 (Other business expenses)"
+   - Remove Line 0 as an option in the prompt
+   - **Success Criteria**: LLM always returns line numbers 8-27
+
+2. **Add Backend Validation** ⏳ URGENT  
+   - Add logic to automatically convert Line 0 to Line 27
+   - Validate all LLM responses before saving to database
+   - **Success Criteria**: No transactions saved with schedule_c_line = 0
+
+3. **Fix Existing Line 0 Transactions** ⏳ IMMEDIATE
+   - Update existing transactions with Line 0 to use Line 27
+   - SQL: `UPDATE transactions SET schedule_c_line = 27 WHERE schedule_c_line = 0;`
+   - **Success Criteria**: All transactions have valid line numbers (8-27)
+
+**Priority**: CRITICAL - This is why user sees uncategorized transactions

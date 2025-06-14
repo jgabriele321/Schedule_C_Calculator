@@ -95,6 +95,7 @@ export function Dashboard() {
   const [irsCategories, setIrsCategories] = useState<any[]>([])
   const [categoriesLoaded, setCategoriesLoaded] = useState(false)
   const [autoCategorizingTransactions, setAutoCategorizingTransactions] = useState<Set<string>>(new Set())
+  const [autoCategorizingAll, setAutoCategorizingAll] = useState(false)
 
   // Clear data modal state
   const [showClearDataModal, setShowClearDataModal] = useState(false)
@@ -119,13 +120,20 @@ export function Dashboard() {
 
   const checkForExistingData = async () => {
     try {
+      console.log("🔍 Checking for existing data...")
       const summaryData = await api.get("/summary")
+      console.log("📊 Summary data:", summaryData)
       if (summaryData.success && summaryData.summary.expense_transactions > 0) {
+        console.log("✅ Data found, setting hasData=true and switching to overview")
         setHasData(true)
         setSummary(summaryData)
         setActiveTab("overview")
+      } else {
+        console.log("❌ No data found, staying on upload tab")
+        setHasData(false)
       }
-    } catch {
+    } catch (error) {
+      console.log("❌ Error checking for data:", error)
       // No data exists, stay on upload tab
       setHasData(false)
     }
@@ -172,6 +180,7 @@ export function Dashboard() {
   useEffect(() => {
     // Load transactions when transactions tab is activated
     if (activeTab === "transactions" && hasData) {
+      console.log("📋 Transactions tab activated, loading data...")
       loadTransactions()
       loadIrsCategories() // Load categories for dropdowns
     }
@@ -214,6 +223,7 @@ export function Dashboard() {
   const triggerManualCategorization = async () => {
     try {
       console.log('🎯 Manually triggering auto-categorization...')
+      setAutoCategorizingAll(true)
       setAutoCategorizingTransactions(new Set())
       
       const result = await api.post("/categorize", {})
@@ -223,12 +233,14 @@ export function Dashboard() {
         console.log(`✅ Auto-categorized ${result.processed} transactions with best guesses`)
         // Reload transactions to show updated categories
         await loadTransactions()
+        await loadSummary()
       } else {
         console.log('ℹ️ No transactions were categorized - they may already be categorized')
       }
     } catch (error) {
       console.error("Failed to auto-categorize transactions:", error)
     } finally {
+      setAutoCategorizingAll(false)
       setAutoCategorizingTransactions(new Set())
     }
   }
@@ -614,12 +626,14 @@ export function Dashboard() {
   const loadIrsCategories = async () => {
     if (categoriesLoaded) return
     
+    console.log("🏷️ Loading IRS categories...")
     try {
       const data = await api.get("/categories")
+      console.log("🏷️ Categories loaded:", data.categories?.length || 0, "categories")
       setIrsCategories(data.categories || [])
       setCategoriesLoaded(true)
     } catch (error) {
-      console.error("Failed to load IRS categories:", error)
+      console.error("❌ Failed to load IRS categories:", error)
     }
   }
 
@@ -1387,16 +1401,35 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={allBusinessSelected}
-                  onCheckedChange={handleToggleAllBusiness}
-                  disabled={toggleLoading === "all"}
-                  className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                />
-                <span className="text-sm font-medium text-gray-300">
-                  Mark All Database as Business
-                </span>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={allBusinessSelected}
+                    onCheckedChange={handleToggleAllBusiness}
+                    disabled={toggleLoading === "all"}
+                    className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                  />
+                  <span className="text-sm font-medium text-gray-300">
+                    Mark All Database as Business
+                  </span>
+                </div>
+                
+                <Button
+                  onClick={triggerManualCategorization}
+                  disabled={autoCategorizingAll}
+                  className="h-8 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                >
+                  {autoCategorizingAll ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      AI Categorizing...
+                    </>
+                  ) : (
+                    <>
+                      🤖 Try AI Auto-Categorization
+                    </>
+                  )}
+                </Button>
               </div>
               {toggleLoading === "all" && (
                 <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
@@ -1473,6 +1506,11 @@ export function Dashboard() {
                               } />
                             </SelectTrigger>
                             <SelectContent className="bg-gray-700 border-gray-600">
+                              {irsCategories.length === 0 && (
+                                <SelectItem value="loading" disabled className="text-gray-400">
+                                  Loading categories...
+                                </SelectItem>
+                              )}
                               {irsCategories.map((category) => (
                                 <SelectItem key={category.id} value={category.name} className="text-white hover:bg-gray-600">
                                   {category.name} (L{category.line_number})

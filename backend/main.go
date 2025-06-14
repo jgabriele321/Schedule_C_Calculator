@@ -294,28 +294,24 @@ func initializeScheduleCCategories() error {
 		return nil
 	}
 
-	// Default Schedule C categories based on IRS Form 1040 Schedule C
+	// Schedule C categories based on user requirements
 	categories := []ScheduleCCategory{
 		{Name: "Advertising", LineNumber: 8, Description: "Advertising and marketing expenses"},
-		{Name: "Car and truck expenses", LineNumber: 9, Description: "Vehicle expenses for business use"},
+		{Name: "Car and truck", LineNumber: 9, Description: "Vehicle expenses for business use"},
 		{Name: "Commissions and fees", LineNumber: 10, Description: "Commissions and fees paid"},
-		{Name: "Contract labor", LineNumber: 11, Description: "Contract labor expenses"},
-		{Name: "Depletion", LineNumber: 12, Description: "Depletion expenses"},
-		{Name: "Depreciation", LineNumber: 13, Description: "Depreciation and section 179 expense deduction"},
-		{Name: "Employee benefit programs", LineNumber: 14, Description: "Employee benefit programs"},
-		{Name: "Insurance (other than health)", LineNumber: 15, Description: "Insurance expenses (other than health)"},
-		{Name: "Interest (mortgage)", LineNumber: 16, Description: "Mortgage interest paid to banks, etc."},
-		{Name: "Interest (other)", LineNumber: 17, Description: "Other interest expenses"},
-		{Name: "Legal and professional services", LineNumber: 18, Description: "Legal and professional services"},
-		{Name: "Office expense", LineNumber: 19, Description: "Office expenses"},
-		{Name: "Pension and profit-sharing plans", LineNumber: 20, Description: "Pension and profit-sharing plans"},
-		{Name: "Rent or lease (vehicles)", LineNumber: 21, Description: "Rent or lease of vehicles, machinery, and equipment"},
-		{Name: "Rent or lease (other)", LineNumber: 22, Description: "Rent or lease of other business property"},
-		{Name: "Repairs and maintenance", LineNumber: 23, Description: "Repairs and maintenance"},
-		{Name: "Supplies", LineNumber: 24, Description: "Supplies (not included in Part III)"},
-		{Name: "Taxes and licenses", LineNumber: 25, Description: "Taxes and licenses"},
-		{Name: "Travel and meals", LineNumber: 26, Description: "Travel, meals, and entertainment"},
-		{Name: "Utilities", LineNumber: 27, Description: "Utilities"},
+		{Name: "Contractors", LineNumber: 11, Description: "Contract labor and contractor expenses"},
+		{Name: "Insurance", LineNumber: 15, Description: "Business insurance expenses"},
+		{Name: "Interest paid", LineNumber: 16, Description: "Business interest payments"},
+		{Name: "Legal fees and professional services", LineNumber: 17, Description: "Legal and professional services"},
+		{Name: "Meals", LineNumber: 24, Description: "Business meals and entertainment"},
+		{Name: "Office expenses", LineNumber: 18, Description: "Office supplies and expenses"},
+		{Name: "Other business expenses", LineNumber: 27, Description: "Other miscellaneous business expenses"},
+		{Name: "Rent and lease", LineNumber: 20, Description: "Rent or lease of business property and equipment"},
+		{Name: "Repairs and maintenance", LineNumber: 21, Description: "Repairs and maintenance expenses"},
+		{Name: "Supplies", LineNumber: 22, Description: "Business supplies and materials"},
+		{Name: "Taxes and licenses", LineNumber: 23, Description: "Business taxes and licenses"},
+		{Name: "Travel expenses", LineNumber: 25, Description: "Business travel expenses"},
+		{Name: "Utilities", LineNumber: 26, Description: "Business utilities and communications"},
 	}
 
 	// Insert categories into database
@@ -483,6 +479,17 @@ func uploadCSV(w http.ResponseWriter, r *http.Request) {
 	// Log successful upload
 	log.Printf("📤 CSV processed: %s (ID: %s, Source: %s, Transactions: %d, Payments excluded: %d)",
 		filename, fileID, source, parsedData.ParsedCount, parsedData.PaymentsExcluded)
+
+	// Trigger auto-categorization for newly uploaded transactions
+	go func() {
+		log.Printf("🤖 Starting auto-categorization for uploaded transactions...")
+		err := categorizeUncategorizedTransactions()
+		if err != nil {
+			log.Printf("❌ Auto-categorization failed: %v", err)
+		} else {
+			log.Printf("✅ Auto-categorization completed")
+		}
+	}()
 
 	// Return success response
 	response := UploadResponse{
@@ -1088,7 +1095,8 @@ func saveCSVFileRecord(fileID, filename, source, tempPath string) error {
 	return nil
 }
 
-func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
+// Helper function for auto-categorization (used by upload and manual trigger)
+func categorizeUncategorizedTransactions() error {
 	// Get uncategorized transactions
 	query := `
 		SELECT id, vendor, amount, category, purpose, type
@@ -1100,8 +1108,7 @@ func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(query)
 	if err != nil {
-		http.Error(w, "Failed to fetch transactions", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to fetch transactions: %v", err)
 	}
 	defer rows.Close()
 
@@ -1117,12 +1124,8 @@ func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(transactions) == 0 {
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":   true,
-			"message":   "No uncategorized transactions found",
-			"processed": 0,
-		})
-		return
+		log.Printf("No uncategorized transactions found")
+		return nil
 	}
 
 	// Process transactions in batches
@@ -1145,12 +1148,57 @@ func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
 		log.Printf("🏷️ Classified: %s -> %s (Line %d)", tx.Vendor, classification.Category, classification.ScheduleCLine)
 	}
 
+	log.Printf("✅ Auto-categorization completed: %d/%d transactions processed", processed, len(transactions))
+	return nil
+}
+
+func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
+	// Count uncategorized transactions first
+	countQuery := `
+		SELECT COUNT(*) 
+		FROM transactions 
+		WHERE category = 'uncategorized' OR category = ''
+	`
+
+	var totalUncategorized int
+	err := db.QueryRow(countQuery).Scan(&totalUncategorized)
+	if err != nil {
+		http.Error(w, "Failed to count transactions", http.StatusInternalServerError)
+		return
+	}
+
+	if totalUncategorized == 0 {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   true,
+			"message":   "No uncategorized transactions found",
+			"processed": 0,
+		})
+		return
+	}
+
+	// Use the helper function to do the actual categorization
+	err = categorizeUncategorizedTransactions()
+	if err != nil {
+		log.Printf("Categorization failed: %v", err)
+		http.Error(w, "Categorization failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Count how many were processed by checking remaining uncategorized
+	var remainingUncategorized int
+	err = db.QueryRow(countQuery).Scan(&remainingUncategorized)
+	if err != nil {
+		remainingUncategorized = totalUncategorized // fallback
+	}
+
+	processed := totalUncategorized - remainingUncategorized
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":   true,
 		"message":   fmt.Sprintf("Processed %d transactions", processed),
 		"processed": processed,
-		"total":     len(transactions),
+		"total":     totalUncategorized,
 	})
 }
 
@@ -1215,33 +1263,37 @@ Amount: $%.2f
 Description: %s
 
 Based on this information, provide a JSON response with:
-1. category: Business expense category (e.g., "Travel", "Meals", "Software", "Office Supplies", "Professional Services", "Marketing", "Equipment", "Insurance", etc.)
-2. schedule_c_line: IRS Schedule C line number (8-27 for deductible business expenses, or 0 if not deductible)
+1. category: Must be one of the exact categories listed below
+2. schedule_c_line: IRS Schedule C line number (MUST be 8-27, NEVER use 0)
 3. expensable: true/false if this is a legitimate business expense
 4. purpose: Brief business purpose description
 5. confidence: 0.0-1.0 confidence score
 
-IRS Schedule C Line Reference:
-- Line 8: Advertising
-- Line 9: Car and truck expenses  
-- Line 10: Commissions and fees
-- Line 11: Contract labor
-- Line 12: Depletion
-- Line 13: Depreciation
-- Line 14: Employee benefit programs
-- Line 15: Insurance (other than health)
-- Line 16: Interest (mortgage, other)
-- Line 17: Legal and professional services
-- Line 18: Office expense
-- Line 19: Pension and profit-sharing plans
-- Line 20: Rent or lease (vehicles, equipment, other)
-- Line 21: Repairs and maintenance
-- Line 22: Supplies
-- Line 23: Taxes and licenses
-- Line 24: Travel and meals
-- Line 25: Utilities
-- Line 26: Wages
-- Line 27: Other expenses
+REQUIRED CATEGORIES (use exact names):
+- Line 8: "Advertising"
+- Line 9: "Car and truck"
+- Line 10: "Commissions and fees"
+- Line 11: "Contractors"
+- Line 15: "Insurance"
+- Line 16: "Interest paid"
+- Line 17: "Legal fees and professional services"
+- Line 18: "Office expenses"
+- Line 20: "Rent and lease"
+- Line 21: "Repairs and maintenance"
+- Line 22: "Supplies"
+- Line 23: "Taxes and licenses"
+- Line 24: "Meals"
+- Line 25: "Travel expenses"
+- Line 26: "Utilities"
+- Line 27: "Other business expenses"
+
+CRITICAL RULES:
+- NEVER use Line 0 or any number outside 8-27
+- If uncertain about the category, ALWAYS use "Other business expenses" (Line 27)
+- If you think it's not a business expense, still use Line 27 and set expensable: false
+- The schedule_c_line MUST be between 8 and 27 (inclusive)
+
+Use the exact category name from the list above. If unsure, use "Other business expenses".
 
 Respond with ONLY valid JSON:`, tx.Vendor, tx.Amount, tx.Purpose)
 
@@ -1296,6 +1348,14 @@ Respond with ONLY valid JSON:`, tx.Vendor, tx.Amount, tx.Purpose)
 	var classification ExpenseClassification
 	if err := json.Unmarshal([]byte(content), &classification); err != nil {
 		return nil, fmt.Errorf("failed to parse LLM response: %v", err)
+	}
+
+	// Validate and fix schedule_c_line - never allow Line 0
+	if classification.ScheduleCLine < 8 || classification.ScheduleCLine > 27 {
+		log.Printf("⚠️ Invalid schedule_c_line %d for %s, converting to Line 27 (Other business expenses)",
+			classification.ScheduleCLine, tx.Vendor)
+		classification.ScheduleCLine = 27
+		classification.Category = "Other business expenses"
 	}
 
 	return &classification, nil
