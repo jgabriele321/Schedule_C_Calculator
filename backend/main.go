@@ -176,6 +176,8 @@ func main() {
 	r.Post("/fix-income", fixIncomeTransactions)
 	r.Get("/categories", getScheduleCCategories)
 	r.Delete("/clear-all-data", clearAllData)
+	r.Get("/export/pdf", exportScheduleCPDF)
+	r.Get("/export/csv", exportScheduleCSV)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -1097,13 +1099,12 @@ func saveCSVFileRecord(fileID, filename, source, tempPath string) error {
 
 // Helper function for auto-categorization (used by upload and manual trigger)
 func categorizeUncategorizedTransactions() error {
-	// Get uncategorized transactions
+	// Get uncategorized transactions or transactions without proper Schedule C line assignments
 	query := `
 		SELECT id, vendor, amount, category, purpose, type
 		FROM transactions 
-		WHERE category = 'uncategorized' OR category = ''
+		WHERE category = 'uncategorized' OR category = '' OR schedule_c_line = 0
 		ORDER BY date DESC
-		LIMIT 50
 	`
 
 	rows, err := db.Query(query)
@@ -1187,11 +1188,11 @@ func categorizeUncategorizedTransactions() error {
 }
 
 func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
-	// Count uncategorized transactions first
+	// Count uncategorized transactions or transactions without proper Schedule C line assignments
 	countQuery := `
 		SELECT COUNT(*) 
 		FROM transactions 
-		WHERE category = 'uncategorized' OR category = ''
+		WHERE category = 'uncategorized' OR category = '' OR schedule_c_line = 0
 	`
 
 	var totalUncategorized int
@@ -2454,4 +2455,343 @@ func getBusinessSummary(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// Export Schedule C as PDF
+func exportScheduleCPDF(w http.ResponseWriter, r *http.Request) {
+	// Get Schedule C data
+	summaryData := getScheduleCData()
+	if summaryData == nil {
+		http.Error(w, "Failed to generate Schedule C data", http.StatusInternalServerError)
+		return
+	}
+
+	scheduleC := summaryData["schedule_c"].(map[string]interface{})
+	summary := summaryData["summary"].(map[string]interface{})
+
+	// Create a simple text-based PDF content
+	// In production, you'd use a proper PDF library like gofpdf
+	content := fmt.Sprintf(`Schedule C (Form 1040) - Profit or Loss From Business
+Tax Year: %v
+Generated: %v
+
+PART I - INCOME
+Line 1 - Gross receipts or sales: $%.2f
+
+PART II - EXPENSES
+Line 8  - Advertising: $%.2f
+Line 9  - Car and truck expenses: $%.2f
+Line 10 - Commissions and fees: $%.2f
+Line 11 - Contract labor: $%.2f
+Line 12 - Depletion: $%.2f
+Line 13 - Depreciation and section 179: $%.2f
+Line 14 - Employee benefit programs: $%.2f
+Line 15 - Insurance (other than health): $%.2f
+Line 16 - Interest: $%.2f
+Line 17 - Legal and professional services: $%.2f
+Line 18 - Office expense: $%.2f
+Line 19 - Pension and profit-sharing plans: $%.2f
+Line 20 - Rent or lease: $%.2f
+Line 21 - Repairs and maintenance: $%.2f
+Line 22 - Supplies: $%.2f
+Line 23 - Taxes and licenses: $%.2f
+Line 24 - Travel and meals: $%.2f
+Line 25 - Utilities: $%.2f
+Line 26 - Wages: $%.2f
+Line 27 - Other expenses: $%.2f
+
+Line 28 - Total expenses: $%.2f
+Line 30 - Home office deduction: $%.2f
+Line 31 - Net profit or (loss): $%.2f
+
+SUMMARY
+Income transactions: %v
+Expense transactions: %v
+Vehicle miles: %v
+Home office sq ft: %v
+`,
+		summaryData["tax_year"],
+		summaryData["calculation_date"],
+		scheduleC["line1_gross_receipts"],
+		scheduleC["line8_advertising"],
+		scheduleC["line9_car_truck"],
+		scheduleC["line10_commissions_fees"],
+		scheduleC["line11_contract_labor"],
+		scheduleC["line12_depletion"],
+		scheduleC["line13_depreciation"],
+		scheduleC["line14_employee_benefits"],
+		scheduleC["line15_insurance"],
+		scheduleC["line16_interest"],
+		scheduleC["line17_legal_professional"],
+		scheduleC["line18_office_expense"],
+		scheduleC["line19_pension_profit"],
+		scheduleC["line20_rent_lease"],
+		scheduleC["line21_repairs_maintenance"],
+		scheduleC["line22_supplies"],
+		scheduleC["line23_taxes_licenses"],
+		scheduleC["line24_travel_meals"],
+		scheduleC["line25_utilities"],
+		scheduleC["line26_wages"],
+		scheduleC["line27_other_expenses"],
+		scheduleC["line28_total_expenses"],
+		scheduleC["line30_home_office"],
+		scheduleC["line31_net_profit_loss"],
+		summary["income_transactions"],
+		summary["expense_transactions"],
+		summary["vehicle_miles"],
+		summary["home_office_sqft"],
+	)
+
+	// Set headers for PDF download
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=Schedule_C_%d.pdf", time.Now().Year()))
+
+	// For simplicity, we'll return as text. In production, use a PDF library
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=Schedule_C_%d.txt", time.Now().Year()))
+
+	w.Write([]byte(content))
+	log.Printf("📄 Schedule C PDF exported successfully")
+}
+
+// Export detailed transaction data as CSV
+func exportScheduleCSV(w http.ResponseWriter, r *http.Request) {
+	// Get all transactions
+	query := `
+		SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business
+		FROM transactions
+		ORDER BY date DESC
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Error querying transactions for CSV export: %v", err)
+		http.Error(w, "Failed to export CSV", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// Set headers for CSV download
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=Schedule_C_Details_%d.csv", time.Now().Year()))
+
+	// Write CSV header
+	csvHeader := "Date,Vendor,Amount,Card,Category,Purpose,Expensable,Type,Source File,Schedule C Line,Is Business,Transaction ID\n"
+	w.Write([]byte(csvHeader))
+
+	// Write transaction data
+	for rows.Next() {
+		var tx Transaction
+		err := rows.Scan(&tx.ID, &tx.Date, &tx.Vendor, &tx.Amount, &tx.Card, &tx.Category, &tx.Purpose, &tx.Expensable, &tx.Type, &tx.SourceFile, &tx.ScheduleCLine, &tx.IsBusiness)
+		if err != nil {
+			log.Printf("Error scanning transaction for CSV: %v", err)
+			continue
+		}
+
+		// Format and escape CSV values
+		dateStr := tx.Date.Format("2006-01-02")
+		vendor := strings.ReplaceAll(tx.Vendor, ",", ";")
+		category := strings.ReplaceAll(tx.Category, ",", ";")
+		purpose := strings.ReplaceAll(tx.Purpose, ",", ";")
+		sourceFile := strings.ReplaceAll(tx.SourceFile, ",", ";")
+
+		expensableStr := "No"
+		if tx.Expensable {
+			expensableStr = "Yes"
+		}
+
+		isBusinessStr := "No"
+		if tx.IsBusiness {
+			isBusinessStr = "Yes"
+		}
+
+		csvLine := fmt.Sprintf("%s,%s,%.2f,%s,%s,%s,%s,%s,%s,%d,%s,%s\n",
+			dateStr, vendor, tx.Amount, tx.Card, category, purpose, expensableStr, tx.Type, sourceFile, tx.ScheduleCLine, isBusinessStr, tx.ID)
+
+		w.Write([]byte(csvLine))
+	}
+
+	// Add summary section
+	summaryData := getScheduleCData()
+	if summaryData != nil {
+		scheduleC := summaryData["schedule_c"].(map[string]interface{})
+		summary := summaryData["summary"].(map[string]interface{})
+
+		summarySection := fmt.Sprintf(`
+SCHEDULE C SUMMARY
+Line Item,Amount
+Gross Receipts (Line 1),%.2f
+Advertising (Line 8),%.2f
+Car and Truck (Line 9),%.2f
+Commissions and Fees (Line 10),%.2f
+Contract Labor (Line 11),%.2f
+Insurance (Line 15),%.2f
+Legal and Professional (Line 17),%.2f
+Office Expense (Line 18),%.2f
+Rent or Lease (Line 20),%.2f
+Supplies (Line 22),%.2f
+Travel and Meals (Line 24),%.2f
+Utilities (Line 25),%.2f
+Other Expenses (Line 27),%.2f
+Total Expenses (Line 28),%.2f
+Home Office Deduction (Line 30),%.2f
+Net Profit/Loss (Line 31),%.2f
+
+SUMMARY STATISTICS
+Income Transactions,%v
+Expense Transactions,%v
+Vehicle Miles,%v
+Home Office Sq Ft,%v
+`,
+			scheduleC["line1_gross_receipts"],
+			scheduleC["line8_advertising"],
+			scheduleC["line9_car_truck"],
+			scheduleC["line10_commissions_fees"],
+			scheduleC["line11_contract_labor"],
+			scheduleC["line15_insurance"],
+			scheduleC["line17_legal_professional"],
+			scheduleC["line18_office_expense"],
+			scheduleC["line20_rent_lease"],
+			scheduleC["line22_supplies"],
+			scheduleC["line24_travel_meals"],
+			scheduleC["line25_utilities"],
+			scheduleC["line27_other_expenses"],
+			scheduleC["line28_total_expenses"],
+			scheduleC["line30_home_office"],
+			scheduleC["line31_net_profit_loss"],
+			summary["income_transactions"],
+			summary["expense_transactions"],
+			summary["vehicle_miles"],
+			summary["home_office_sqft"],
+		)
+
+		w.Write([]byte(summarySection))
+	}
+
+	log.Printf("📊 Schedule C CSV exported successfully")
+}
+
+// Helper function to get Schedule C data (reused by both export functions)
+func getScheduleCData() map[string]interface{} {
+	// Initialize Schedule C line items
+	scheduleC := map[string]interface{}{
+		"line1_gross_receipts":       0.0,
+		"line8_advertising":          0.0,
+		"line9_car_truck":            0.0,
+		"line10_commissions_fees":    0.0,
+		"line11_contract_labor":      0.0,
+		"line12_depletion":           0.0,
+		"line13_depreciation":        0.0,
+		"line14_employee_benefits":   0.0,
+		"line15_insurance":           0.0,
+		"line16_interest":            0.0,
+		"line17_legal_professional":  0.0,
+		"line18_office_expense":      0.0,
+		"line19_pension_profit":      0.0,
+		"line20_rent_lease":          0.0,
+		"line21_repairs_maintenance": 0.0,
+		"line22_supplies":            0.0,
+		"line23_taxes_licenses":      0.0,
+		"line24_travel_meals":        0.0,
+		"line25_utilities":           0.0,
+		"line26_wages":               0.0,
+		"line27_other_expenses":      0.0,
+		"line30_home_office":         0.0,
+		"line28_total_expenses":      0.0,
+		"line31_net_profit_loss":     0.0,
+	}
+
+	// Get income
+	incomeQuery := `SELECT SUM(ABS(amount)) FROM transactions WHERE type = 'income' AND expensable = true`
+	var grossReceipts sql.NullFloat64
+	err := db.QueryRow(incomeQuery).Scan(&grossReceipts)
+	if err == nil && grossReceipts.Valid {
+		scheduleC["line1_gross_receipts"] = grossReceipts.Float64
+	}
+
+	// Get expenses by Schedule C line
+	expenseQuery := `
+		SELECT schedule_c_line, SUM(ABS(amount)) 
+		FROM transactions 
+		WHERE type = 'expense' AND expensable = true AND schedule_c_line > 0
+		GROUP BY schedule_c_line
+	`
+
+	expenseRows, err := db.Query(expenseQuery)
+	if err != nil {
+		return nil
+	}
+	defer expenseRows.Close()
+
+	var totalExpenses float64
+	for expenseRows.Next() {
+		var lineNumber int
+		var amount float64
+		err := expenseRows.Scan(&lineNumber, &amount)
+		if err != nil {
+			continue
+		}
+
+		switch lineNumber {
+		case 8:
+			scheduleC["line8_advertising"] = amount
+		case 9:
+			scheduleC["line9_car_truck"] = amount
+		case 10:
+			scheduleC["line10_commissions_fees"] = amount
+		case 11:
+			scheduleC["line11_contract_labor"] = amount
+		case 15:
+			scheduleC["line15_insurance"] = amount
+		case 17:
+			scheduleC["line17_legal_professional"] = amount
+		case 18:
+			scheduleC["line18_office_expense"] = amount
+		case 20:
+			scheduleC["line20_rent_lease"] = amount
+		case 22:
+			scheduleC["line22_supplies"] = amount
+		case 24:
+			scheduleC["line24_travel_meals"] = amount
+		case 25:
+			scheduleC["line25_utilities"] = amount
+		case 27:
+			scheduleC["line27_other_expenses"] = amount
+		}
+		totalExpenses += amount
+	}
+
+	// Get transaction counts
+	countQuery := `
+		SELECT 
+			COUNT(CASE WHEN type = 'income' AND expensable = true THEN 1 END) as income_transactions,
+			COUNT(CASE WHEN type = 'expense' AND expensable = true THEN 1 END) as expense_transactions
+		FROM transactions
+	`
+
+	var incomeCount, expenseCount int
+	err = db.QueryRow(countQuery).Scan(&incomeCount, &expenseCount)
+	if err != nil {
+		incomeCount, expenseCount = 0, 0
+	}
+
+	scheduleC["line28_total_expenses"] = totalExpenses
+	grossReceiptsValue := scheduleC["line1_gross_receipts"].(float64)
+	scheduleC["line31_net_profit_loss"] = grossReceiptsValue - totalExpenses
+
+	return map[string]interface{}{
+		"success":    true,
+		"schedule_c": scheduleC,
+		"summary": map[string]interface{}{
+			"gross_receipts":       grossReceiptsValue,
+			"total_expenses":       totalExpenses,
+			"net_profit_loss":      grossReceiptsValue - totalExpenses,
+			"income_transactions":  incomeCount,
+			"expense_transactions": expenseCount,
+			"vehicle_miles":        0,
+			"home_office_sqft":     0,
+		},
+		"tax_year":         2024,
+		"calculation_date": time.Now().Format("2006-01-02 15:04:05"),
+	}
 }

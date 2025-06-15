@@ -103,6 +103,11 @@ export function Dashboard() {
   const [showClearDataModal, setShowClearDataModal] = useState(false)
   const [clearingData, setClearingData] = useState(false)
 
+  // Export state
+  const [exportLoading, setExportLoading] = useState(false)
+  const [scheduleData, setScheduleData] = useState<any>(null)
+  const [loadingSchedule, setLoadingSchedule] = useState(false)
+
   useEffect(() => {
     // Load saved tab from localStorage
     const savedTab = localStorage.getItem("scheduleC-activeTab")
@@ -126,10 +131,10 @@ export function Dashboard() {
       const summaryData = await api.get("/summary")
       console.log("📊 Summary data:", summaryData)
       if (summaryData.success && summaryData.summary.expense_transactions > 0) {
-        console.log("✅ Data found, setting hasData=true and switching to overview")
+        console.log("✅ Data found, setting hasData=true and staying on upload tab as default")
         setHasData(true)
         setSummary(summaryData)
-        setActiveTab("overview")
+        // Keep upload tab as default - don't auto-switch to overview
       } else {
         console.log("❌ No data found, staying on upload tab")
         setHasData(false)
@@ -188,6 +193,71 @@ export function Dashboard() {
     }
   }, [activeTab, hasData, loadTransactions])
 
+  // Load schedule data when export tab is activated
+  useEffect(() => {
+    if (activeTab === "export") {
+      loadScheduleData()
+    }
+  }, [activeTab])
+
+  const loadScheduleData = async () => {
+    setLoadingSchedule(true)
+    try {
+      const data = await api.get("/summary")
+      setScheduleData(data)
+    } catch (error) {
+      console.error("Failed to load Schedule C data:", error)
+    } finally {
+      setLoadingSchedule(false)
+    }
+  }
+
+  const handleExportPDF = async () => {
+    setExportLoading(true)
+    try {
+      // Create a downloadable PDF
+      const response = await fetch('http://localhost:8080/export/pdf')
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      a.download = `Schedule_C_${new Date().getFullYear()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Export to PDF failed:", error)
+      alert("Export to PDF failed. Please try again.")
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const handleExportCSV = async () => {
+    setExportLoading(true)
+    try {
+      // Create a downloadable CSV
+      const response = await fetch('http://localhost:8080/export/csv')
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      a.download = `Schedule_C_Details_${new Date().getFullYear()}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Export to CSV failed:", error)
+      alert("Export to CSV failed. Please try again.")
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
 
 
   // Auto-categorize uncategorized transactions using our best guess
@@ -227,17 +297,24 @@ export function Dashboard() {
       console.log('🎯 Manually triggering auto-categorization...')
       setAutoCategorizingAll(true)
       setShowCategorizationModal(true)
-      setCategorizationProgress({ processed: 0, total: 43, currentItem: 'Refreshing transaction data...' })
+      setCategorizationProgress({ processed: 0, total: 0, currentItem: 'Refreshing transaction data...' })
       setAutoCategorizingTransactions(new Set())
       
       // Force reload transactions from database to get fresh data
       console.log('🔄 Reloading transactions to get fresh data...')
       await loadTransactions()
-      setCategorizationProgress({ processed: 0, total: 43, currentItem: 'Starting AI categorization...' })
+      
+      // Count uncategorized transactions dynamically
+      const uncategorized = transactions.filter(t => 
+        !t.category || t.category === 'uncategorized' || t.category === ''
+      )
+      const totalTransactions = uncategorized.length
+      
+      setCategorizationProgress({ processed: 0, total: totalTransactions, currentItem: 'Starting AI categorization...' })
+      console.log(`📊 Found ${totalTransactions} uncategorized transactions to process`)
       
       // Simulate progress updates while API processes
       let currentProgress = 0
-      const totalTransactions = 43
       const progressInterval = setInterval(() => {
         currentProgress += Math.floor(Math.random() * 3) + 1 // Random progress 1-3
         if (currentProgress < totalTransactions - 5) { // Don't go too close to completion
@@ -418,11 +495,14 @@ export function Dashboard() {
         setSelectedFiles([])
         setSelectedFile(null)
 
-        // Stay on upload page and just update data status
+        // Auto-redirect to transactions tab after successful upload
         setHasData(true)
         setTimeout(() => {
           setUploadSuccess(false)
           loadSummary()
+          // Automatically switch to transactions tab to view uploaded data
+          setActiveTab("transactions")
+          console.log("🚀 Auto-redirecting to transactions tab after successful upload")
         }, 3000)
       }
     } catch (err) {
@@ -1685,8 +1765,255 @@ export function Dashboard() {
 
 
   const renderExport = () => {
-    // Export render logic would go here
-    return <div>Export content</div>
+
+    if (loadingSchedule) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 text-blue-400 mx-auto mb-4 animate-spin" />
+            <p className="text-gray-400">Loading Schedule C data...</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (!scheduleData) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-4" />
+            <p className="text-red-400 font-medium">No Schedule C data available</p>
+            <p className="text-gray-400 text-sm">Please upload and categorize transactions first</p>
+          </div>
+        </div>
+      )
+    }
+
+    const scheduleC = scheduleData.schedule_c
+    const summary = scheduleData.summary
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Schedule C Export</h2>
+            <p className="text-gray-400">IRS Form 1040 - Schedule C (Form 1040)</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportPDF}
+              disabled={exportLoading}
+              style={{
+                backgroundColor: exportLoading ? '#374151' : '#dc2626',
+                color: '#ffffff',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: exportLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (!exportLoading) e.currentTarget.style.backgroundColor = '#b91c1c'
+              }}
+              onMouseLeave={(e) => {
+                if (!exportLoading) e.currentTarget.style.backgroundColor = '#dc2626'
+              }}
+            >
+              {exportLoading ? (
+                <RefreshCw style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <FileText style={{ width: '16px', height: '16px' }} />
+              )}
+              Export PDF
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={exportLoading}
+              style={{
+                backgroundColor: exportLoading ? '#374151' : '#059669',
+                color: '#ffffff',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: exportLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (!exportLoading) e.currentTarget.style.backgroundColor = '#047857'
+              }}
+              onMouseLeave={(e) => {
+                if (!exportLoading) e.currentTarget.style.backgroundColor = '#059669'
+              }}
+            >
+              {exportLoading ? (
+                <RefreshCw style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <Download style={{ width: '16px', height: '16px' }} />
+              )}
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Summary Cards */}
+          <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Gross Receipts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-400">
+                {formatCurrency(scheduleC.line1_gross_receipts)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Line 1</p>
+            </CardContent>
+          </Card>
+
+          <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Total Expenses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-400">
+                {formatCurrency(scheduleC.line28_total_expenses)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Line 28</p>
+            </CardContent>
+          </Card>
+
+          <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Net Profit/Loss</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${scheduleC.line31_net_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(scheduleC.line31_net_profit_loss)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Line 31</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Official Schedule C Form Layout */}
+        <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+          <CardHeader>
+            <CardTitle className="text-xl text-white">Schedule C (Form 1040) - Profit or Loss From Business</CardTitle>
+            <CardDescription className="text-gray-400">Tax Year {scheduleData.tax_year}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Part I - Income */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4 border-b border-gray-700 pb-2">Part I - Income</h3>
+                <div className="grid grid-cols-12 gap-4 items-center py-2">
+                  <div className="col-span-1 text-sm font-medium text-gray-400">1</div>
+                  <div className="col-span-8 text-sm text-gray-300">Gross receipts or sales</div>
+                  <div className="col-span-3 text-right text-white font-mono">{formatCurrency(scheduleC.line1_gross_receipts)}</div>
+                </div>
+              </div>
+
+              {/* Part II - Expenses */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4 border-b border-gray-700 pb-2">Part II - Expenses</h3>
+                <div className="space-y-2">
+                  {[
+                    { line: 8, label: "Advertising", value: scheduleC.line8_advertising },
+                    { line: 9, label: "Car and truck expenses", value: scheduleC.line9_car_truck },
+                    { line: 10, label: "Commissions and fees", value: scheduleC.line10_commissions_fees },
+                    { line: 11, label: "Contract labor", value: scheduleC.line11_contract_labor },
+                    { line: 12, label: "Depletion", value: scheduleC.line12_depletion },
+                    { line: 13, label: "Depreciation and section 179", value: scheduleC.line13_depreciation },
+                    { line: 14, label: "Employee benefit programs", value: scheduleC.line14_employee_benefits },
+                    { line: 15, label: "Insurance (other than health)", value: scheduleC.line15_insurance },
+                    { line: 16, label: "Interest", value: scheduleC.line16_interest },
+                    { line: 17, label: "Legal and professional services", value: scheduleC.line17_legal_professional },
+                    { line: 18, label: "Office expense", value: scheduleC.line18_office_expense },
+                    { line: 19, label: "Pension and profit-sharing plans", value: scheduleC.line19_pension_profit },
+                    { line: 20, label: "Rent or lease", value: scheduleC.line20_rent_lease },
+                    { line: 21, label: "Repairs and maintenance", value: scheduleC.line21_repairs_maintenance },
+                    { line: 22, label: "Supplies", value: scheduleC.line22_supplies },
+                    { line: 23, label: "Taxes and licenses", value: scheduleC.line23_taxes_licenses },
+                    { line: 24, label: "Travel and meals", value: scheduleC.line24_travel_meals },
+                    { line: 25, label: "Utilities", value: scheduleC.line25_utilities },
+                    { line: 26, label: "Wages", value: scheduleC.line26_wages },
+                    { line: 27, label: "Other expenses", value: scheduleC.line27_other_expenses }
+                  ].map((item) => (
+                    <div key={item.line} className={`grid grid-cols-12 gap-4 items-center py-2 ${item.value > 0 ? 'bg-gray-800/30' : ''} rounded`}>
+                      <div className="col-span-1 text-sm font-medium text-gray-400">{item.line}</div>
+                      <div className="col-span-8 text-sm text-gray-300">{item.label}</div>
+                      <div className="col-span-3 text-right text-white font-mono">
+                        {item.value > 0 ? formatCurrency(item.value) : '-'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Totals */}
+              <div className="border-t border-gray-700 pt-4">
+                <div className="grid grid-cols-12 gap-4 items-center py-2 bg-gray-800/50 rounded">
+                  <div className="col-span-1 text-sm font-bold text-gray-300">28</div>
+                  <div className="col-span-8 text-sm font-bold text-gray-300">Total expenses</div>
+                  <div className="col-span-3 text-right text-white font-mono font-bold">{formatCurrency(scheduleC.line28_total_expenses)}</div>
+                </div>
+                
+                {scheduleC.line30_home_office > 0 && (
+                  <div className="grid grid-cols-12 gap-4 items-center py-2">
+                    <div className="col-span-1 text-sm font-medium text-gray-400">30</div>
+                    <div className="col-span-8 text-sm text-gray-300">Home office deduction</div>
+                    <div className="col-span-3 text-right text-white font-mono">{formatCurrency(scheduleC.line30_home_office)}</div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-12 gap-4 items-center py-3 bg-blue-900/30 rounded mt-2">
+                  <div className="col-span-1 text-sm font-bold text-blue-300">31</div>
+                  <div className="col-span-8 text-sm font-bold text-blue-300">Net profit or (loss)</div>
+                  <div className={`col-span-3 text-right font-mono font-bold text-lg ${scheduleC.line31_net_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {formatCurrency(scheduleC.line31_net_profit_loss)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Info */}
+              <div className="bg-gray-800/20 rounded-lg p-4 mt-6">
+                <h4 className="text-sm font-semibold text-gray-300 mb-2">Calculation Summary</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-400">Income Transactions:</span>
+                    <div className="text-white font-medium">{summary.income_transactions}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Expense Transactions:</span>
+                    <div className="text-white font-medium">{summary.expense_transactions}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Vehicle Miles:</span>
+                    <div className="text-white font-medium">{summary.vehicle_miles || 0}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Home Office Sq Ft:</span>
+                    <div className="text-white font-medium">{summary.home_office_sqft || 0}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  Generated on {scheduleData.calculation_date}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   // Progress Modal Component - Fixed with CSS overrides like delete modal
