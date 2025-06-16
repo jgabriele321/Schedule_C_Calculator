@@ -108,6 +108,20 @@ export function Dashboard() {
   const [scheduleData, setScheduleData] = useState<any>(null)
   const [loadingSchedule, setLoadingSchedule] = useState(false)
 
+  // Mileage state
+  const [mileageData, setMileageData] = useState<any>(null)
+  const [businessMiles, setBusinessMiles] = useState("")
+  const [mileageLoading, setMileageLoading] = useState(false)
+  const [mileageSaving, setMileageSaving] = useState(false)
+
+  // Home Office state
+  const [homeOfficeData, setHomeOfficeData] = useState<any>(null)
+  const [homeOfficeSqft, setHomeOfficeSqft] = useState("")
+  const [totalHomeSqft, setTotalHomeSqft] = useState("")
+  const [useSimplified, setUseSimplified] = useState(true)
+  const [homeOfficeLoading, setHomeOfficeLoading] = useState(false)
+  const [homeOfficeSaving, setHomeOfficeSaving] = useState(false)
+
   useEffect(() => {
     // Load saved tab from localStorage
     const savedTab = localStorage.getItem("scheduleC-activeTab")
@@ -197,6 +211,15 @@ export function Dashboard() {
   useEffect(() => {
     if (activeTab === "export") {
       loadScheduleData()
+    }
+  }, [activeTab])
+
+  // Load mileage and home office data when their tabs are activated
+  useEffect(() => {
+    if (activeTab === "mileage") {
+      loadMileageData()
+    } else if (activeTab === "homeoffice") {
+      loadHomeOfficeData()
     }
   }, [activeTab])
 
@@ -391,6 +414,82 @@ export function Dashboard() {
       setError(err instanceof Error ? err.message : "Failed to load summary")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadMileageData = async () => {
+    try {
+      setMileageLoading(true)
+      const data = await api.get("/deductions")
+      setMileageData(data)
+      if (data.business_miles) {
+        setBusinessMiles(data.business_miles.toString())
+      }
+    } catch (error) {
+      console.error("Failed to load mileage data:", error)
+    } finally {
+      setMileageLoading(false)
+    }
+  }
+
+  const saveMileageData = async () => {
+    try {
+      setMileageSaving(true)
+      const response = await api.post("/vehicle", {
+        business_miles: parseInt(businessMiles) || 0
+      })
+      
+      if (response.success) {
+        setMileageData(response)
+        setError(null)
+      }
+    } catch (error) {
+      console.error("Failed to save mileage data:", error)
+      setError("Failed to save mileage data")
+    } finally {
+      setMileageSaving(false)
+    }
+  }
+
+  const loadHomeOfficeData = async () => {
+    try {
+      setHomeOfficeLoading(true)
+      const data = await api.get("/deductions")
+      setHomeOfficeData(data)
+      if (data.home_office_sqft) {
+        setHomeOfficeSqft(data.home_office_sqft.toString())
+      }
+      if (data.total_home_sqft) {
+        setTotalHomeSqft(data.total_home_sqft.toString())
+      }
+      if (data.use_simplified !== undefined) {
+        setUseSimplified(data.use_simplified)
+      }
+    } catch (error) {
+      console.error("Failed to load home office data:", error)
+    } finally {
+      setHomeOfficeLoading(false)
+    }
+  }
+
+  const saveHomeOfficeData = async () => {
+    try {
+      setHomeOfficeSaving(true)
+      const response = await api.post("/home-office", {
+        home_office_sqft: parseInt(homeOfficeSqft) || 0,
+        total_home_sqft: parseInt(totalHomeSqft) || 0,
+        use_simplified: useSimplified
+      })
+      
+      if (response.success) {
+        setHomeOfficeData(response)
+        setError(null)
+      }
+    } catch (error) {
+      console.error("Failed to save home office data:", error)
+      setError("Failed to save home office data")
+    } finally {
+      setHomeOfficeSaving(false)
     }
   }
 
@@ -2178,6 +2277,480 @@ export function Dashboard() {
     )
   }
 
+  const renderMileage = () => (
+    <div className="space-y-6">
+      {/* Header Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle 
+            style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: '#f9fafb',
+              margin: '0'
+            }}
+          >
+            🚗 Business Mileage Deduction
+          </CardTitle>
+          <CardDescription 
+            style={{
+              color: '#9ca3af',
+              fontSize: '14px',
+              margin: '8px 0 0 0'
+            }}
+          >
+            Track your business miles and calculate the IRS standard mileage deduction. The current rate for 2024 is $0.67 per mile.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* Mileage Input Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle 
+            style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#f9fafb',
+              margin: '0 0 16px 0'
+            }}
+          >
+            Business Miles Driven
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div style={{ marginBottom: '24px' }}>
+            <label 
+              style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#f3f4f6',
+                marginBottom: '8px'
+              }}
+            >
+              Total Business Miles for Tax Year
+            </label>
+            <Input
+              type="number"
+              placeholder="Enter total business miles"
+              value={businessMiles}
+              onChange={(e) => setBusinessMiles(e.target.value)}
+              style={{
+                backgroundColor: '#374151',
+                border: '1px solid #4b5563',
+                color: '#f9fafb'
+              }}
+            />
+          </div>
+
+          {/* Calculation Display */}
+          {businessMiles && parseInt(businessMiles) > 0 && (
+            <div 
+              style={{
+                backgroundColor: '#1f2937',
+                border: '1px solid #374151',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '24px'
+              }}
+            >
+              <h4 
+                style={{
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#f9fafb',
+                  marginBottom: '12px'
+                }}
+              >
+                Deduction Calculation
+              </h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#d1d5db' }}>Business Miles:</span>
+                <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(businessMiles).toLocaleString()}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#d1d5db' }}>IRS Rate (2024):</span>
+                <span style={{ color: '#f9fafb', fontWeight: '500' }}>$0.67 per mile</span>
+              </div>
+              <div 
+                style={{
+                  borderTop: '1px solid #374151',
+                  paddingTop: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <span style={{ color: '#d1d5db', fontWeight: '600' }}>Total Deduction:</span>
+                <span 
+                  style={{
+                    color: '#10b981',
+                    fontWeight: '700',
+                    fontSize: '18px'
+                  }}
+                >
+                  ${(parseInt(businessMiles) * 0.67).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <Button
+            onClick={saveMileageData}
+            disabled={mileageSaving}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontWeight: '500'
+            }}
+          >
+            {mileageSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              'Save Mileage Data'
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Information Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle 
+            style={{
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#f9fafb',
+              margin: '0 0 12px 0'
+            }}
+          >
+            📋 Important Notes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul 
+            style={{
+              color: '#d1d5db',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              listStyle: 'disc',
+              paddingLeft: '20px'
+            }}
+          >
+            <li>The IRS standard mileage rate for 2024 is $0.67 per mile for business use</li>
+            <li>Keep detailed records of your business trips including dates, destinations, and business purposes</li>
+            <li>This deduction is separate from your car and truck expenses on Line 9</li>
+            <li>You must choose between the standard mileage rate or actual expenses - you cannot use both</li>
+            <li>The 2025 rate increases to $0.70 per mile starting January 1, 2025</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const renderHomeOffice = () => (
+    <div className="space-y-6">
+      {/* Header Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle 
+            style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: '#f9fafb',
+              margin: '0'
+            }}
+          >
+            🏠 Home Office Deduction
+          </CardTitle>
+          <CardDescription 
+            style={{
+              color: '#9ca3af',
+              fontSize: '14px',
+              margin: '8px 0 0 0'
+            }}
+          >
+            Calculate your home office deduction using either the simplified method ($5 per sq ft) or actual expense method.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* Method Selection Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle 
+            style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#f9fafb',
+              margin: '0 0 16px 0'
+            }}
+          >
+            Calculation Method
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div style={{ marginBottom: '24px' }}>
+            <label 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              <input
+                type="radio"
+                checked={useSimplified}
+                onChange={() => setUseSimplified(true)}
+                style={{
+                  marginRight: '8px',
+                  accentColor: '#3b82f6'
+                }}
+              />
+              <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+                Simplified Method ($5 per square foot, max 300 sq ft)
+              </span>
+            </label>
+            <label 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <input
+                type="radio"
+                checked={!useSimplified}
+                onChange={() => setUseSimplified(false)}
+                style={{
+                  marginRight: '8px',
+                  accentColor: '#3b82f6'
+                }}
+              />
+              <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+                Actual Expense Method (percentage of home expenses)
+              </span>
+            </label>
+          </div>
+
+          {/* Home Office Square Footage */}
+          <div style={{ marginBottom: '24px' }}>
+            <label 
+              style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#f3f4f6',
+                marginBottom: '8px'
+              }}
+            >
+              Home Office Square Footage
+            </label>
+            <Input
+              type="number"
+              placeholder="Enter home office square footage"
+              value={homeOfficeSqft}
+              onChange={(e) => setHomeOfficeSqft(e.target.value)}
+              style={{
+                backgroundColor: '#374151',
+                border: '1px solid #4b5563',
+                color: '#f9fafb'
+              }}
+            />
+          </div>
+
+          {/* Total Home Square Footage - only for actual expense method */}
+          {!useSimplified && (
+            <div style={{ marginBottom: '24px' }}>
+              <label 
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#f3f4f6',
+                  marginBottom: '8px'
+                }}
+              >
+                Total Home Square Footage
+              </label>
+              <Input
+                type="number"
+                placeholder="Enter total home square footage"
+                value={totalHomeSqft}
+                onChange={(e) => setTotalHomeSqft(e.target.value)}
+                style={{
+                  backgroundColor: '#374151',
+                  border: '1px solid #4b5563',
+                  color: '#f9fafb'
+                }}
+              />
+            </div>
+          )}
+
+          {/* Calculation Display */}
+          {homeOfficeSqft && parseInt(homeOfficeSqft) > 0 && (
+            <div 
+              style={{
+                backgroundColor: '#1f2937',
+                border: '1px solid #374151',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '24px'
+              }}
+            >
+              <h4 
+                style={{
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#f9fafb',
+                  marginBottom: '12px'
+                }}
+              >
+                Deduction Calculation
+              </h4>
+              
+              {useSimplified ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#d1d5db' }}>Home Office Sq Ft:</span>
+                    <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(homeOfficeSqft)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#d1d5db' }}>Simplified Rate:</span>
+                    <span style={{ color: '#f9fafb', fontWeight: '500' }}>$5 per sq ft</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#d1d5db' }}>Max Deductible Sq Ft:</span>
+                    <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+                      {Math.min(parseInt(homeOfficeSqft), 300)} sq ft
+                    </span>
+                  </div>
+                  <div 
+                    style={{
+                      borderTop: '1px solid #374151',
+                      paddingTop: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span style={{ color: '#d1d5db', fontWeight: '600' }}>Total Deduction:</span>
+                    <span 
+                      style={{
+                        color: '#10b981',
+                        fontWeight: '700',
+                        fontSize: '18px'
+                      }}
+                    >
+                      ${(Math.min(parseInt(homeOfficeSqft), 300) * 5).toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {totalHomeSqft && parseInt(totalHomeSqft) > 0 ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ color: '#d1d5db' }}>Home Office Sq Ft:</span>
+                        <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(homeOfficeSqft)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ color: '#d1d5db' }}>Total Home Sq Ft:</span>
+                        <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(totalHomeSqft)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ color: '#d1d5db' }}>Percentage:</span>
+                        <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+                          {((parseInt(homeOfficeSqft) / parseInt(totalHomeSqft)) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div 
+                        style={{
+                          borderTop: '1px solid #374151',
+                          paddingTop: '8px',
+                          color: '#d1d5db',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Apply this percentage to your qualifying home expenses (mortgage interest, property taxes, utilities, insurance, repairs, etc.)
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: '#f59e0b', fontSize: '14px' }}>
+                      Please enter total home square footage to calculate the percentage
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          <Button
+            onClick={saveHomeOfficeData}
+            disabled={homeOfficeSaving}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontWeight: '500'
+            }}
+          >
+            {homeOfficeSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              'Save Home Office Data'
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Information Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle 
+            style={{
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#f9fafb',
+              margin: '0 0 12px 0'
+            }}
+          >
+            📋 Important Notes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul 
+            style={{
+              color: '#d1d5db',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              listStyle: 'disc',
+              paddingLeft: '20px'
+            }}
+          >
+            <li><strong>Simplified Method:</strong> Easier to calculate, $5 per square foot up to 300 sq ft maximum ($1,500 max deduction)</li>
+            <li><strong>Actual Expense Method:</strong> May provide larger deduction but requires detailed record keeping</li>
+            <li>Your home office must be used regularly and exclusively for business purposes</li>
+            <li>For actual expenses, keep records of mortgage interest, property taxes, utilities, insurance, repairs, and depreciation</li>
+            <li>You cannot use both methods in the same year</li>
+            <li>This data will be included in your Schedule C export for CPA review</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
   const renderContent = () => {
     if (error) {
       return (
@@ -2203,6 +2776,10 @@ export function Dashboard() {
         return renderTransactions()
       case "recurring":
         return renderRecurring()
+      case "mileage":
+        return renderMileage()
+      case "homeoffice":
+        return renderHomeOffice()
       case "export":
         return renderExport()
       default:
@@ -2269,6 +2846,32 @@ export function Dashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("mileage")}
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
+              activeTab === "mileage"
+                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
+                : "text-gray-300 hover:bg-gray-700/50"
+            }`}
+          >
+            <CreditCard className="h-4 w-4" />
+            <span className="text-sm font-medium">Mileage</span>
+            {activeTab === "mileage" && <ChevronRight className="h-3 w-3 ml-auto" />}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("homeoffice")}
+            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
+              activeTab === "homeoffice"
+                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
+                : "text-gray-300 hover:bg-gray-700/50"
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            <span className="text-sm font-medium">Home Office</span>
+            {activeTab === "homeoffice" && <ChevronRight className="h-3 w-3 ml-auto" />}
+          </button>
+
+          <button
             onClick={() => setActiveTab("overview")}
             className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
               activeTab === "overview"
@@ -2308,6 +2911,8 @@ export function Dashboard() {
               {activeTab === "overview" && "Overview"}
               {activeTab === "transactions" && "Transactions"}
               {activeTab === "recurring" && "Recurring Transactions"}
+              {activeTab === "mileage" && "Business Mileage Deduction"}
+              {activeTab === "homeoffice" && "Home Office Deduction"}
               {activeTab === "categories" && "Categories"}
               {activeTab === "export" && "Export"}
             </h1>
@@ -2316,6 +2921,8 @@ export function Dashboard() {
               {activeTab === "overview" && "Financial summary and key metrics"}
               {activeTab === "transactions" && "Review and manage your transactions"}
               {activeTab === "recurring" && "Manage recurring transactions and bulk actions"}
+              {activeTab === "mileage" && "Track business miles and calculate IRS standard mileage deduction"}
+              {activeTab === "homeoffice" && "Calculate home office deduction using simplified or actual expense method"}
               {activeTab === "categories" && "Expense breakdown by category"}
               {activeTab === "export" && "Download reports and tax forms"}
             </p>

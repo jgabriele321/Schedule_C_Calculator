@@ -1897,7 +1897,8 @@ func getDeductions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Calculate deductions
-	vehicleDeduction := float64(businessMiles) * 0.67
+	mileageRate := 0.67 // 2024 IRS rate
+	vehicleDeduction := float64(businessMiles) * mileageRate
 
 	var homeOfficeDeduction float64
 	if useSimplified {
@@ -2062,7 +2063,8 @@ func getScheduleCSummary(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(deductionQuery).Scan(&businessMiles, &homeOfficeSqft, &useSimplified)
 	if err == nil {
 		// Vehicle deduction (Line 9)
-		vehicleDeduction := float64(businessMiles) * 0.67
+		mileageRate := 0.67 // 2024 IRS rate
+		vehicleDeduction := float64(businessMiles) * mileageRate
 		currentLine9 := scheduleC["line9_car_truck"].(float64)
 		scheduleC["line9_car_truck"] = currentLine9 + vehicleDeduction
 		totalExpenses += vehicleDeduction
