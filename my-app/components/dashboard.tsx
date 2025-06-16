@@ -72,7 +72,7 @@ export function Dashboard() {
   const [totalTransactions, setTotalTransactions] = useState(0)
 
   // Sorting state
-  const [sortBy, setSortBy] = useState<"amount" | "date" | "vendor">("amount")
+  const [sortBy, setSortBy] = useState<"amount" | "date" | "vendor" | "category" | "business">("amount")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc") // Default: highest amounts first
 
   // Business toggle state
@@ -755,7 +755,7 @@ export function Dashboard() {
   }
 
   // Sorting handler
-  const handleSort = (column: "amount" | "date" | "vendor") => {
+  const handleSort = (column: "amount" | "date" | "vendor" | "category" | "business") => {
     if (sortBy === column) {
       // Toggle sort order if clicking the same column
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -768,6 +768,10 @@ export function Dashboard() {
         setSortOrder("asc")  // Default: alphabetical A-Z
       } else if (column === "date") {
         setSortOrder("desc") // Default: newest first
+      } else if (column === "category") {
+        setSortOrder("asc")  // Default: alphabetical A-Z
+      } else if (column === "business") {
+        setSortOrder("desc") // Default: business first, then personal
       }
     }
   }
@@ -1815,8 +1819,40 @@ export function Dashboard() {
                           )}
                         </div>
                       </th>
-                      <th className="text-left py-3 px-2 text-gray-300 font-medium">Category</th>
-                      <th className="text-left py-3 px-2 text-gray-300 font-medium">Business/Personal</th>
+                      <th 
+                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSort("category")}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Category</span>
+                          {sortBy === "category" && (
+                            <div className="flex flex-col">
+                              {sortOrder === "asc" ? (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                              ) : (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSort("business")}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Business/Personal</span>
+                          {sortBy === "business" && (
+                            <div className="flex flex-col">
+                              {sortOrder === "asc" ? (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                              ) : (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

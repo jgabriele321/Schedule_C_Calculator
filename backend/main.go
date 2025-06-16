@@ -1012,6 +1012,18 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		} else {
 			orderClause += "date DESC" // Default: newest first
 		}
+	case "category":
+		if sortOrder == "desc" {
+			orderClause += "category DESC"
+		} else {
+			orderClause += "category ASC" // Default: alphabetical A-Z
+		}
+	case "business":
+		if sortOrder == "asc" {
+			orderClause += "is_business ASC" // Personal first, then business
+		} else {
+			orderClause += "is_business DESC" // Default: business first, then personal
+		}
 	default:
 		// Default sort: by date, newest first
 		orderClause += "date DESC"
