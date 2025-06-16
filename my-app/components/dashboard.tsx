@@ -205,13 +205,13 @@ export function Dashboard() {
   }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory, sortBy, sortOrder])
 
   useEffect(() => {
-    // Load transactions when transactions tab is activated
+    // Load IRS categories when transactions tab is activated
     if (activeTab === "transactions" && hasData) {
-      console.log("📋 Transactions tab activated, loading data...")
-      loadTransactions()
+      console.log("📋 Transactions tab activated, loading categories...")
       loadIrsCategories() // Load categories for dropdowns
+      // Note: loadTransactions() is handled by the main useEffect below with sorting parameters
     }
-  }, [activeTab, hasData, loadTransactions])
+  }, [activeTab, hasData])
 
   // Load schedule data when export tab is activated
   useEffect(() => {
@@ -228,6 +228,14 @@ export function Dashboard() {
       loadHomeOfficeData()
     }
   }, [activeTab])
+
+  // Auto-calculate business summary when overview tab is activated
+  useEffect(() => {
+    if (activeTab === "overview" && hasData) {
+      console.log("📊 Overview tab activated, auto-calculating business summary...")
+      calculateBusinessSummary()
+    }
+  }, [activeTab, hasData])
 
   const loadScheduleData = async () => {
     setLoadingSchedule(true)
@@ -1164,29 +1172,20 @@ export function Dashboard() {
 
     return (
       <div className="space-y-6">
-        {/* Calculate Button */}
+        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-lg font-semibold text-gray-200">Business Overview</h2>
-            <p className="text-sm text-gray-400">Click Calculate to update totals based on your business selections</p>
+            <p className="text-sm text-gray-400">
+              {isCalculating ? "Calculating totals based on your business selections..." : "Financial summary updated automatically"}
+            </p>
           </div>
-          <Button 
-            onClick={calculateBusinessSummary}
-            disabled={isCalculating}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            {isCalculating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Calculating...
-              </>
-            ) : (
-              <>
-                <Calculator className="h-4 w-4 mr-2" />
-                Calculate Overview
-              </>
-            )}
-          </Button>
+          {isCalculating && (
+            <div className="flex items-center text-blue-400">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <span className="text-sm">Calculating...</span>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -1200,7 +1199,7 @@ export function Dashboard() {
                 {businessSummary ? formatCurrency(businessSummary.business_expenses) : "--"}
               </div>
               <p className="text-xs text-gray-500">
-                {businessSummary ? `${businessSummary.business_transactions} business transactions` : "Click Calculate"}
+                {businessSummary ? `${businessSummary.business_transactions} business transactions` : "Calculating..."}
               </p>
             </CardContent>
           </Card>
@@ -1215,7 +1214,7 @@ export function Dashboard() {
                 {businessSummary ? formatCurrency(businessSummary.personal_expenses) : "--"}
               </div>
               <p className="text-xs text-gray-500">
-                {businessSummary ? `${businessSummary.personal_transactions} personal transactions` : "Click Calculate"}
+                {businessSummary ? `${businessSummary.personal_transactions} personal transactions` : "Calculating..."}
               </p>
             </CardContent>
           </Card>
@@ -1232,7 +1231,7 @@ export function Dashboard() {
               <p className="text-xs text-gray-500">
                 {businessSummary ? 
                   `${businessSummary.business_transactions} business, ${businessSummary.personal_transactions} personal` : 
-                  "Click Calculate"
+                  "Calculating..."
                 }
               </p>
             </CardContent>
@@ -1613,9 +1612,9 @@ export function Dashboard() {
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Cards</option>
-                  <option value="amex">Amex</option>
-                  <option value="visa">Visa</option>
-                  <option value="mastercard">Mastercard</option>
+                  {uniqueCards.map((card) => (
+                    <option key={card} value={card}>{card}</option>
+                  ))}
                 </select>
               </div>
               
@@ -1629,20 +1628,6 @@ export function Dashboard() {
                   <option value="all">All Types</option>
                   <option value="expense">Expenses</option>
                   <option value="income">Income</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">Category</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Categories</option>
-                  <option value="office">Office</option>
-                  <option value="travel">Travel</option>
-                  <option value="meals">Meals</option>
                 </select>
               </div>
             </div>

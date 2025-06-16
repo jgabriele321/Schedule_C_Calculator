@@ -2351,8 +2351,12 @@ func toggleBusinessStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update the transaction
-	_, err := db.Exec("UPDATE transactions SET is_business = ? WHERE id = ?", req.IsBusiness, req.TransactionID)
+	// Update the transaction and its sortable column
+	sortBusiness := "Personal"
+	if req.IsBusiness {
+		sortBusiness = "Business"
+	}
+	_, err := db.Exec("UPDATE transactions SET is_business = ?, sort_business = ? WHERE id = ?", req.IsBusiness, sortBusiness, req.TransactionID)
 	if err != nil {
 		http.Error(w, "Failed to update transaction", http.StatusInternalServerError)
 		return
@@ -2384,6 +2388,12 @@ func toggleAllBusinessStatus(w http.ResponseWriter, r *http.Request) {
 	var query string
 	var args []interface{}
 
+	// Determine sort_business value
+	sortBusiness := "Personal"
+	if req.IsBusiness {
+		sortBusiness = "Business"
+	}
+
 	if len(req.IDList) > 0 {
 		// Update specific transactions by ID list
 		placeholders := make([]string, len(req.IDList))
@@ -2391,12 +2401,12 @@ func toggleAllBusinessStatus(w http.ResponseWriter, r *http.Request) {
 			placeholders[i] = "?"
 			args = append(args, id)
 		}
-		query = fmt.Sprintf("UPDATE transactions SET is_business = ? WHERE id IN (%s)", strings.Join(placeholders, ","))
-		args = append([]interface{}{req.IsBusiness}, args...)
+		query = fmt.Sprintf("UPDATE transactions SET is_business = ?, sort_business = ? WHERE id IN (%s)", strings.Join(placeholders, ","))
+		args = append([]interface{}{req.IsBusiness, sortBusiness}, args...)
 	} else {
 		// Update all transactions with optional filters
-		query = "UPDATE transactions SET is_business = ?"
-		args = append(args, req.IsBusiness)
+		query = "UPDATE transactions SET is_business = ?, sort_business = ?"
+		args = append(args, req.IsBusiness, sortBusiness)
 
 		var conditions []string
 
