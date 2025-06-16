@@ -176,6 +176,10 @@ export function Dashboard() {
       if (selectedCard !== 'all') params.append('card', selectedCard)
       if (selectedType !== 'all') params.append('type', selectedType)
       if (selectedCategory !== 'all') params.append('category', selectedCategory)
+      
+      // Add sorting parameters
+      params.append('sortBy', sortBy)
+      params.append('sortOrder', sortOrder)
 
       const data = await api.get(`/transactions?${params.toString()}`)
       setTransactions(data.transactions || [])
@@ -196,7 +200,7 @@ export function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory])
+  }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory, sortBy, sortOrder])
 
   useEffect(() => {
     // Load transactions when transactions tab is activated
@@ -283,20 +287,20 @@ export function Dashboard() {
 
 
 
-  // Auto-categorize uncategorized transactions using our best guess
+  // Auto-categorize uncategorized BUSINESS transactions using our best guess
   const autoCategorizeBestGuess = useCallback(async () => {
     try {
-      // Find uncategorized transactions
-      const uncategorized = transactions.filter(t => 
-        !t.category || t.category === 'uncategorized' || t.category === ''
+      // Find uncategorized BUSINESS transactions
+      const uncategorizedBusiness = transactions.filter(t => 
+        t.is_business && (!t.category || t.category === 'uncategorized' || t.category === '')
       )
       
-      if (uncategorized.length === 0) return
+      if (uncategorizedBusiness.length === 0) return
       
-      console.log(`🤖 Auto-categorizing ${uncategorized.length} uncategorized transactions...`)
+      console.log(`🤖 Auto-categorizing ${uncategorizedBusiness.length} uncategorized business transactions...`)
       
       // Mark transactions as being auto-categorized
-      const uncategorizedIds = new Set(uncategorized.map(t => t.id))
+      const uncategorizedIds = new Set(uncategorizedBusiness.map(t => t.id))
       setAutoCategorizingTransactions(uncategorizedIds)
       
       // Call the bulk categorization endpoint
@@ -305,7 +309,7 @@ export function Dashboard() {
       if (result.success && result.processed > 0) {
         // Reload transactions to show updated categories
         await loadTransactions()
-        console.log(`✅ Auto-categorized ${result.processed} transactions with best guesses`)
+        console.log(`✅ Auto-categorized ${result.processed} business transactions with best guesses`)
       }
     } catch (error) {
       console.error("Failed to auto-categorize transactions:", error)
@@ -327,11 +331,11 @@ export function Dashboard() {
       console.log('🔄 Reloading transactions to get fresh data...')
       await loadTransactions()
       
-      // Count uncategorized transactions dynamically
-      const uncategorized = transactions.filter(t => 
-        !t.category || t.category === 'uncategorized' || t.category === ''
+      // Count uncategorized BUSINESS transactions dynamically
+      const uncategorizedBusiness = transactions.filter(t => 
+        t.is_business && (!t.category || t.category === 'uncategorized' || t.category === '')
       )
-      const totalTransactions = uncategorized.length
+      const totalTransactions = uncategorizedBusiness.length
       
       setCategorizationProgress({ processed: 0, total: totalTransactions, currentItem: 'Starting AI categorization...' })
       console.log(`📊 Found ${totalTransactions} uncategorized transactions to process`)
@@ -371,9 +375,19 @@ export function Dashboard() {
           await loadSummary()
           setShowCategorizationModal(false)
         }, 2000)
+      } else if (result.no_business_transactions) {
+        // Special case: No business transactions marked
+        console.log('⚠️ No business transactions found - user needs to mark transactions as business first')
+        setCategorizationProgress({ processed: 0, total: 0, currentItem: result.message })
+        setTimeout(() => setShowCategorizationModal(false), 4000)
+        
+        // Show alert with the instruction
+        setTimeout(() => {
+          alert('💡 To use AI categorization:\n\n1. First mark transactions as "Business" using the checkboxes\n2. Then click "Try AI Auto-Categorization"\n\nOnly business transactions will be categorized for tax purposes.')
+        }, 1000)
       } else {
         console.log('ℹ️ No transactions were categorized - they may already be categorized')
-        setCategorizationProgress({ processed: 0, total: 0, currentItem: 'No uncategorized transactions found' })
+        setCategorizationProgress({ processed: 0, total: 0, currentItem: 'No uncategorized business transactions found' })
         setTimeout(() => setShowCategorizationModal(false), 2000)
       }
     } catch (error) {
@@ -389,13 +403,13 @@ export function Dashboard() {
   // Auto-categorize after transactions are loaded (more aggressive triggering)
   useEffect(() => {
     if (activeTab === "transactions" && transactions.length > 0) {
-      // Find uncategorized transactions
-      const uncategorized = transactions.filter(t => 
-        !t.category || t.category === 'uncategorized' || t.category === ''
+      // Find uncategorized BUSINESS transactions
+      const uncategorizedBusiness = transactions.filter(t => 
+        t.is_business && (!t.category || t.category === 'uncategorized' || t.category === '')
       )
       
-      if (uncategorized.length > 0) {
-        console.log(`🤖 Found ${uncategorized.length} uncategorized transactions on transactions tab, auto-categorizing...`)
+      if (uncategorizedBusiness.length > 0) {
+        console.log(`🤖 Found ${uncategorizedBusiness.length} uncategorized business transactions on transactions tab, auto-categorizing...`)
         
         // Trigger auto-categorization immediately
         const timer = setTimeout(triggerManualCategorization, 1000)
@@ -612,21 +626,21 @@ export function Dashboard() {
     }
   }
 
-  // Update effect dependencies to include filters
+  // Update effect dependencies to include filters and sorting
   useEffect(() => {
     if (hasData && activeTab === "transactions") {
       loadTransactions()
       // Also check overall business status for master toggle
       checkOverallBusinessStatus()
     }
-  }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory, hasData, activeTab, loadTransactions])
+  }, [currentPage, pageSize, searchTerm, selectedCard, selectedType, selectedCategory, sortBy, sortOrder, hasData, activeTab, loadTransactions])
 
-  // Separate effect to reset to page 1 when filters change (but not when page changes)
+  // Separate effect to reset to page 1 when filters or sorting changes (but not when page changes)
   useEffect(() => {
     if (hasData && activeTab === "transactions" && currentPage !== 1) {
       setCurrentPage(1)
     }
-  }, [searchTerm, selectedCard, selectedType, selectedCategory, hasData, activeTab])
+  }, [searchTerm, selectedCard, selectedType, selectedCategory, sortBy, sortOrder, hasData, activeTab])
 
   // Load recurring transactions when recurring tab is active
   useEffect(() => {
@@ -737,6 +751,24 @@ export function Dashboard() {
       console.error("Failed to toggle all business status:", error)
     } finally {
       setToggleLoading(null)
+    }
+  }
+
+  // Sorting handler
+  const handleSort = (column: "amount" | "date" | "vendor") => {
+    if (sortBy === column) {
+      // Toggle sort order if clicking the same column
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+    } else {
+      // Set new column and default sort order
+      setSortBy(column)
+      if (column === "amount") {
+        setSortOrder("desc") // Default: highest amounts first
+      } else if (column === "vendor") {
+        setSortOrder("asc")  // Default: alphabetical A-Z
+      } else if (column === "date") {
+        setSortOrder("desc") // Default: newest first
+      }
     }
   }
 
@@ -1728,90 +1760,150 @@ export function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                {transactions.map((transaction: any) => (
-                  <div key={transaction.id} className="flex items-center justify-between py-3 px-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <div className="flex items-center space-x-4 flex-1">
-                      <div className="text-sm text-gray-300 min-w-[80px]">
-                        {new Date(transaction.date).toLocaleDateString()}
-                      </div>
-                      <div className="text-sm text-gray-100 max-w-[200px] truncate">
-                        {transaction.vendor || transaction.description || 'Unknown'}
-                      </div>
-                      <div className={`text-sm font-medium min-w-[80px] ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
-                        {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
-                      </div>
-                      
-                      {/* IRS Category Dropdown */}
-                      <div className="flex items-center space-x-2 min-w-[180px]">
-                        <div className="relative w-full">
-                          <Select
-                            value={transaction.category || ""}
-                            onValueChange={(value) => {
-                              if (value === "other") {
-                                handleCategoryChange(transaction.id, "Other expenses", 27)
-                              } else {
-                                const category = irsCategories.find(cat => cat.name === value)
-                                if (category) {
-                                  handleCategoryChange(transaction.id, category.name, category.line_number)
-                                }
-                              }
-                            }}
-                            disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
-                          >
-                            <SelectTrigger className={`w-full h-8 text-xs bg-gray-700 border-gray-600 text-white ${
-                              transaction.category && transaction.category !== 'uncategorized' 
-                                ? 'border-green-600 bg-green-900/20' 
-                                : autoCategorizingTransactions.has(transaction.id) 
-                                  ? 'border-blue-600 bg-blue-900/20' 
-                                  : ''
-                            }`}>
-                              <SelectValue placeholder={
-                                autoCategorizingTransactions.has(transaction.id) 
-                                  ? "Auto-categorizing..." 
-                                  : "Select category..."
-                              } />
-                            </SelectTrigger>
-                            <SelectContent className="bg-gray-700 border-gray-600">
-                              {irsCategories.length === 0 && (
-                                <SelectItem value="loading" disabled className="text-gray-400">
-                                  Loading categories...
-                                </SelectItem>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-600">
+                      <th 
+                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSort("date")}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Date</span>
+                          {sortBy === "date" && (
+                            <div className="flex flex-col">
+                              {sortOrder === "asc" ? (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                              ) : (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
                               )}
-                              {irsCategories.map((category) => (
-                                <SelectItem key={category.id} value={category.name} className="text-white hover:bg-gray-600">
-                                  {category.name} (L{category.line_number})
-                                </SelectItem>
-                              ))}
-                              <SelectItem value="other" className="text-white hover:bg-gray-600">
-                                Other expenses (L27)
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {/* Visual indicator for categorized transactions */}
-                          {transaction.category && transaction.category !== 'uncategorized' && (
-                            <div className="absolute -right-1 -top-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                            </div>
                           )}
                         </div>
-                        {(toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)) && (
-                          <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={transaction.is_business}
-                        onCheckedChange={(checked) => handleToggleBusiness(transaction.id, !!checked)}
-                        disabled={toggleLoading === transaction.id}
-                        className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                      />
-                      <span className={`text-xs font-medium ${transaction.is_business ? 'text-blue-400' : 'text-gray-400'}`}>
-                        {transaction.is_business ? 'Business' : 'Personal'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                      </th>
+                      <th 
+                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSort("vendor")}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Vendor</span>
+                          {sortBy === "vendor" && (
+                            <div className="flex flex-col">
+                              {sortOrder === "asc" ? (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                              ) : (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSort("amount")}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Amount</span>
+                          {sortBy === "amount" && (
+                            <div className="flex flex-col">
+                              {sortOrder === "asc" ? (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                              ) : (
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-2 text-gray-300 font-medium">Category</th>
+                      <th className="text-left py-3 px-2 text-gray-300 font-medium">Business/Personal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map((transaction: any) => (
+                      <tr key={transaction.id} className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors">
+                        <td className="py-3 px-2 text-gray-300">
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-2 text-gray-100 max-w-[200px] truncate">
+                          {transaction.vendor || transaction.description || 'Unknown'}
+                        </td>
+                        <td className={`py-3 px-2 font-medium ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                          {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center space-x-2">
+                            <div className="relative w-full max-w-[200px]">
+                              <Select
+                                value={transaction.category || ""}
+                                onValueChange={(value) => {
+                                  if (value === "other") {
+                                    handleCategoryChange(transaction.id, "Other expenses", 27)
+                                  } else {
+                                    const category = irsCategories.find(cat => cat.name === value)
+                                    if (category) {
+                                      handleCategoryChange(transaction.id, category.name, category.line_number)
+                                    }
+                                  }
+                                }}
+                                disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
+                              >
+                                <SelectTrigger className={`w-full h-8 text-xs bg-gray-700 border-gray-600 text-white ${
+                                  transaction.category && transaction.category !== 'uncategorized' 
+                                    ? 'border-green-600 bg-green-900/20' 
+                                    : autoCategorizingTransactions.has(transaction.id) 
+                                      ? 'border-blue-600 bg-blue-900/20' 
+                                      : ''
+                                }`}>
+                                  <SelectValue placeholder={
+                                    autoCategorizingTransactions.has(transaction.id) 
+                                      ? "Auto-categorizing..." 
+                                      : "Select category..."
+                                  } />
+                                </SelectTrigger>
+                                <SelectContent className="bg-gray-700 border-gray-600">
+                                  {irsCategories.length === 0 && (
+                                    <SelectItem value="loading" disabled className="text-gray-400">
+                                      Loading categories...
+                                    </SelectItem>
+                                  )}
+                                  {irsCategories.map((category) => (
+                                    <SelectItem key={category.id} value={category.name} className="text-white hover:bg-gray-600">
+                                      {category.name} (L{category.line_number})
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="other" className="text-white hover:bg-gray-600">
+                                    Other expenses (L27)
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {/* Visual indicator for categorized transactions */}
+                              {transaction.category && transaction.category !== 'uncategorized' && (
+                                <div className="absolute -right-1 -top-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                              )}
+                            </div>
+                            {(toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)) && (
+                              <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={transaction.is_business}
+                              onCheckedChange={(checked) => handleToggleBusiness(transaction.id, !!checked)}
+                              disabled={toggleLoading === transaction.id}
+                              className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                            />
+                            <span className={`text-xs font-medium ${transaction.is_business ? 'text-blue-400' : 'text-gray-400'}`}>
+                              {transaction.is_business ? 'Business' : 'Personal'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>

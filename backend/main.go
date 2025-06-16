@@ -894,6 +894,10 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 	unlimited := r.URL.Query().Get("unlimited")
 
+	// Sorting parameters
+	sortBy := r.URL.Query().Get("sortBy")
+	sortOrder := r.URL.Query().Get("sortOrder")
+
 	// Pagination params
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("pageSize")
@@ -987,7 +991,33 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	countArgs := make([]interface{}, len(args))
 	copy(countArgs, args)
 
-	query := baseQuery + " ORDER BY date DESC LIMIT ? OFFSET ?"
+	// Add sorting
+	orderClause := " ORDER BY "
+	switch sortBy {
+	case "amount":
+		if sortOrder == "asc" {
+			orderClause += "ABS(amount) ASC"
+		} else {
+			orderClause += "ABS(amount) DESC" // Default: highest amounts first
+		}
+	case "vendor":
+		if sortOrder == "desc" {
+			orderClause += "vendor DESC"
+		} else {
+			orderClause += "vendor ASC" // Default: alphabetical A-Z
+		}
+	case "date":
+		if sortOrder == "asc" {
+			orderClause += "date ASC" // Oldest first
+		} else {
+			orderClause += "date DESC" // Default: newest first
+		}
+	default:
+		// Default sort: by date, newest first
+		orderClause += "date DESC"
+	}
+
+	query := baseQuery + orderClause + " LIMIT ? OFFSET ?"
 	args = append(args, pageSize, offset)
 
 	rows, err := db.Query(query, args...)
@@ -1100,11 +1130,11 @@ func saveCSVFileRecord(fileID, filename, source, tempPath string) error {
 
 // Helper function for auto-categorization (used by upload and manual trigger)
 func categorizeUncategorizedTransactions() error {
-	// Get uncategorized transactions or transactions without proper Schedule C line assignments
+	// Get uncategorized BUSINESS transactions or business transactions without proper Schedule C line assignments
 	query := `
 		SELECT id, vendor, amount, category, purpose, type
 		FROM transactions 
-		WHERE category = 'uncategorized' OR category = '' OR schedule_c_line = 0
+		WHERE is_business = true AND (category = 'uncategorized' OR category = '' OR schedule_c_line = 0)
 		ORDER BY date DESC
 	`
 
@@ -1189,11 +1219,11 @@ func categorizeUncategorizedTransactions() error {
 }
 
 func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
-	// Count uncategorized transactions or transactions without proper Schedule C line assignments
+	// Count uncategorized BUSINESS transactions or business transactions without proper Schedule C line assignments
 	countQuery := `
 		SELECT COUNT(*) 
 		FROM transactions 
-		WHERE category = 'uncategorized' OR category = '' OR schedule_c_line = 0
+		WHERE is_business = true AND (category = 'uncategorized' OR category = '' OR schedule_c_line = 0)
 	`
 
 	var totalUncategorized int
@@ -1204,9 +1234,24 @@ func categorizeTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if totalUncategorized == 0 {
+		// Check if there are any business transactions at all
+		var businessCount int
+		businessQuery := `SELECT COUNT(*) FROM transactions WHERE is_business = true`
+		db.QueryRow(businessQuery).Scan(&businessCount)
+
+		if businessCount == 0 {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":                  false,
+				"message":                  "Mark transactions as business to have them automatically characterized",
+				"processed":                0,
+				"no_business_transactions": true,
+			})
+			return
+		}
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":   true,
-			"message":   "No uncategorized transactions found",
+			"message":   "No uncategorized business transactions found",
 			"processed": 0,
 		})
 		return
