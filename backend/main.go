@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"github.com/jung-kurt/gofpdf"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -2469,88 +2470,123 @@ func exportScheduleCPDF(w http.ResponseWriter, r *http.Request) {
 	scheduleC := summaryData["schedule_c"].(map[string]interface{})
 	summary := summaryData["summary"].(map[string]interface{})
 
-	// Create a simple text-based PDF content
-	// In production, you'd use a proper PDF library like gofpdf
-	content := fmt.Sprintf(`Schedule C (Form 1040) - Profit or Loss From Business
-Tax Year: %v
-Generated: %v
+	// Import gofpdf at the top of the file
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
 
-PART I - INCOME
-Line 1 - Gross receipts or sales: $%.2f
+	// Set title
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(190, 10, "Schedule C (Form 1040) - Profit or Loss From Business")
+	pdf.Ln(15)
 
-PART II - EXPENSES
-Line 8  - Advertising: $%.2f
-Line 9  - Car and truck expenses: $%.2f
-Line 10 - Commissions and fees: $%.2f
-Line 11 - Contract labor: $%.2f
-Line 12 - Depletion: $%.2f
-Line 13 - Depreciation and section 179: $%.2f
-Line 14 - Employee benefit programs: $%.2f
-Line 15 - Insurance (other than health): $%.2f
-Line 16 - Interest: $%.2f
-Line 17 - Legal and professional services: $%.2f
-Line 18 - Office expense: $%.2f
-Line 19 - Pension and profit-sharing plans: $%.2f
-Line 20 - Rent or lease: $%.2f
-Line 21 - Repairs and maintenance: $%.2f
-Line 22 - Supplies: $%.2f
-Line 23 - Taxes and licenses: $%.2f
-Line 24 - Travel and meals: $%.2f
-Line 25 - Utilities: $%.2f
-Line 26 - Wages: $%.2f
-Line 27 - Other expenses: $%.2f
+	// Add generated date
+	pdf.SetFont("Arial", "", 10)
+	pdf.Cell(190, 6, fmt.Sprintf("Generated on %v", summaryData["calculation_date"]))
+	pdf.Ln(10)
 
-Line 28 - Total expenses: $%.2f
-Line 30 - Home office deduction: $%.2f
-Line 31 - Net profit or (loss): $%.2f
+	// Part I - Income
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 8, "Part I - Income")
+	pdf.Ln(12)
 
-SUMMARY
-Income transactions: %v
-Expense transactions: %v
-Vehicle miles: %v
-Home office sq ft: %v
-`,
-		summaryData["tax_year"],
-		summaryData["calculation_date"],
-		scheduleC["line1_gross_receipts"],
-		scheduleC["line8_advertising"],
-		scheduleC["line9_car_truck"],
-		scheduleC["line10_commissions_fees"],
-		scheduleC["line11_contract_labor"],
-		scheduleC["line12_depletion"],
-		scheduleC["line13_depreciation"],
-		scheduleC["line14_employee_benefits"],
-		scheduleC["line15_insurance"],
-		scheduleC["line16_interest"],
-		scheduleC["line17_legal_professional"],
-		scheduleC["line18_office_expense"],
-		scheduleC["line19_pension_profit"],
-		scheduleC["line20_rent_lease"],
-		scheduleC["line21_repairs_maintenance"],
-		scheduleC["line22_supplies"],
-		scheduleC["line23_taxes_licenses"],
-		scheduleC["line24_travel_meals"],
-		scheduleC["line25_utilities"],
-		scheduleC["line26_wages"],
-		scheduleC["line27_other_expenses"],
-		scheduleC["line28_total_expenses"],
-		scheduleC["line30_home_office"],
-		scheduleC["line31_net_profit_loss"],
-		summary["income_transactions"],
-		summary["expense_transactions"],
-		summary["vehicle_miles"],
-		summary["home_office_sqft"],
-	)
+	pdf.SetFont("Arial", "", 11)
+	pdf.Cell(20, 6, "1")
+	pdf.Cell(100, 6, "Gross receipts or sales")
+	pdf.Cell(70, 6, fmt.Sprintf("$%.2f", scheduleC["line1_gross_receipts"]))
+	pdf.Ln(8)
+
+	// Part II - Expenses
+	pdf.Ln(5)
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 8, "Part II - Expenses")
+	pdf.Ln(12)
+
+	pdf.SetFont("Arial", "", 11)
+
+	// Helper function to add expense line
+	addExpenseLine := func(lineNum, description string, amount float64) {
+		pdf.Cell(20, 6, lineNum)
+		pdf.Cell(100, 6, description)
+		if amount == 0 {
+			pdf.Cell(70, 6, "-")
+		} else {
+			pdf.Cell(70, 6, fmt.Sprintf("$%.2f", amount))
+		}
+		pdf.Ln(8)
+	}
+
+	addExpenseLine("8", "Advertising", scheduleC["line8_advertising"].(float64))
+	addExpenseLine("9", "Car and truck expenses", scheduleC["line9_car_truck"].(float64))
+	addExpenseLine("10", "Commissions and fees", scheduleC["line10_commissions_fees"].(float64))
+	addExpenseLine("11", "Contract labor", scheduleC["line11_contract_labor"].(float64))
+	addExpenseLine("12", "Depletion", scheduleC["line12_depletion"].(float64))
+	addExpenseLine("13", "Depreciation and section 179", scheduleC["line13_depreciation"].(float64))
+	addExpenseLine("14", "Employee benefit programs", scheduleC["line14_employee_benefits"].(float64))
+	addExpenseLine("15", "Insurance (other than health)", scheduleC["line15_insurance"].(float64))
+	addExpenseLine("16", "Interest", scheduleC["line16_interest"].(float64))
+	addExpenseLine("17", "Legal and professional services", scheduleC["line17_legal_professional"].(float64))
+	addExpenseLine("18", "Office expense", scheduleC["line18_office_expense"].(float64))
+	addExpenseLine("19", "Pension and profit-sharing plans", scheduleC["line19_pension_profit"].(float64))
+	addExpenseLine("20", "Rent or lease", scheduleC["line20_rent_lease"].(float64))
+	addExpenseLine("21", "Repairs and maintenance", scheduleC["line21_repairs_maintenance"].(float64))
+	addExpenseLine("22", "Supplies", scheduleC["line22_supplies"].(float64))
+	addExpenseLine("23", "Taxes and licenses", scheduleC["line23_taxes_licenses"].(float64))
+	addExpenseLine("24", "Travel and meals", scheduleC["line24_travel_meals"].(float64))
+	addExpenseLine("25", "Utilities", scheduleC["line25_utilities"].(float64))
+	addExpenseLine("26", "Wages", scheduleC["line26_wages"].(float64))
+	addExpenseLine("27", "Other expenses", scheduleC["line27_other_expenses"].(float64))
+
+	pdf.Ln(5)
+	pdf.SetFont("Arial", "B", 11)
+	pdf.Cell(20, 6, "28")
+	pdf.Cell(100, 6, "Total expenses")
+	pdf.Cell(70, 6, fmt.Sprintf("$%.2f", scheduleC["line28_total_expenses"]))
+	pdf.Ln(12)
+
+	pdf.Cell(20, 6, "31")
+	pdf.Cell(100, 6, "Net profit or (loss)")
+	netProfit := scheduleC["line31_net_profit_loss"].(float64)
+	if netProfit < 0 {
+		pdf.Cell(70, 6, fmt.Sprintf("-$%.2f", -netProfit))
+	} else {
+		pdf.Cell(70, 6, fmt.Sprintf("$%.2f", netProfit))
+	}
+	pdf.Ln(15)
+
+	// Calculation Summary
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 8, "Calculation Summary")
+	pdf.Ln(12)
+
+	pdf.SetFont("Arial", "", 11)
+	pdf.Cell(100, 6, "Income Transactions:")
+	pdf.Cell(90, 6, fmt.Sprintf("%v", summary["income_transactions"]))
+	pdf.Ln(8)
+
+	pdf.Cell(100, 6, "Expense Transactions:")
+	pdf.Cell(90, 6, fmt.Sprintf("%v", summary["expense_transactions"]))
+	pdf.Ln(8)
+
+	pdf.Cell(100, 6, "Vehicle Miles:")
+	pdf.Cell(90, 6, fmt.Sprintf("%v", summary["vehicle_miles"]))
+	pdf.Ln(8)
+
+	pdf.Cell(100, 6, "Home Office Sq Ft:")
+	pdf.Cell(90, 6, fmt.Sprintf("%v", summary["home_office_sqft"]))
+	pdf.Ln(8)
 
 	// Set headers for PDF download
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=Schedule_C_%d.pdf", time.Now().Year()))
 
-	// For simplicity, we'll return as text. In production, use a PDF library
-	w.Header().Set("Content-Type", "text/plain")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=Schedule_C_%d.txt", time.Now().Year()))
+	// Output PDF to response
+	err := pdf.Output(w)
+	if err != nil {
+		log.Printf("Error generating PDF: %v", err)
+		http.Error(w, "Failed to generate PDF", http.StatusInternalServerError)
+		return
+	}
 
-	w.Write([]byte(content))
 	log.Printf("📄 Schedule C PDF exported successfully")
 }
 
