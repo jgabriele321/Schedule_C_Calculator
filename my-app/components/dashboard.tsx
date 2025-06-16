@@ -182,6 +182,8 @@ export function Dashboard() {
       params.append('sortOrder', sortOrder)
 
       const data = await api.get(`/transactions?${params.toString()}`)
+      console.log(`🔍 API Response - Sort: ${sortBy} ${sortOrder}, First 3 transactions:`, 
+        data.transactions?.slice(0, 3).map((t: any) => ({ vendor: t.vendor, amount: t.amount, category: t.category, is_business: t.is_business })))
       setTransactions(data.transactions || [])
       setTotalTransactions(data.total || 0)
       
