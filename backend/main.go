@@ -1020,9 +1020,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 	case "business":
 		if sortOrder == "asc" {
-			orderClause += "is_business ASC" // Personal first, then business
+			orderClause += "CAST(is_business AS INTEGER) ASC, date DESC" // Personal (0) first, then business (1)
 		} else {
-			orderClause += "is_business DESC" // Default: business first, then personal
+			orderClause += "CAST(is_business AS INTEGER) DESC, date DESC" // Business (1) first, then personal (0)
 		}
 	default:
 		// Default sort: by date, newest first
@@ -1031,6 +1031,11 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 
 	query := baseQuery + orderClause + " LIMIT ? OFFSET ?"
 	args = append(args, pageSize, offset)
+
+	// Debug logging
+	log.Printf("🔍 Sorting Debug - sortBy: '%s', sortOrder: '%s'", sortBy, sortOrder)
+	log.Printf("🔍 Query: %s", query)
+	log.Printf("🔍 Order Clause: %s", orderClause)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
