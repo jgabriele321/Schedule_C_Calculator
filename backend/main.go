@@ -37,6 +37,8 @@ type Transaction struct {
 	SourceFile    string    `json:"source_file" db:"source_file"`
 	ScheduleCLine int       `json:"schedule_c_line" db:"schedule_c_line"` // IRS Schedule C line number
 	IsBusiness    bool      `json:"is_business" db:"is_business"`         // User toggle for business vs personal
+	SortCategory  string    `json:"sort_category" db:"sort_category"`     // Sortable category string
+	SortBusiness  string    `json:"sort_business" db:"sort_business"`     // "Business" or "Personal" for sorting
 }
 
 type CSVFile struct {
@@ -280,7 +282,56 @@ func createTables() error {
 		log.Printf("Warning: Could not add is_business column: %v", err)
 	}
 
+	// Add sortable columns for category and business sorting
+	_, err = db.Exec("ALTER TABLE transactions ADD COLUMN sort_category TEXT DEFAULT ''")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		log.Printf("Warning: Could not add sort_category column: %v", err)
+	}
+
+	_, err = db.Exec("ALTER TABLE transactions ADD COLUMN sort_business TEXT DEFAULT 'Personal'")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		log.Printf("Warning: Could not add sort_business column: %v", err)
+	}
+
+	// Populate sortable columns for existing transactions
+	err = populateSortableColumns()
+	if err != nil {
+		log.Printf("Warning: Could not populate sortable columns: %v", err)
+	}
+
 	fmt.Println("📋 Database tables created successfully")
+	return nil
+}
+
+// populateSortableColumns fills in sort_category and sort_business for existing transactions
+func populateSortableColumns() error {
+	// Update sort_category (normalize category names for sorting)
+	_, err := db.Exec(`
+		UPDATE transactions 
+		SET sort_category = CASE
+			WHEN category = '' OR category IS NULL THEN 'zzz_uncategorized'
+			ELSE LOWER(category)
+		END
+		WHERE sort_category = '' OR sort_category IS NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to update sort_category: %v", err)
+	}
+
+	// Update sort_business (convert boolean to sortable string)
+	_, err = db.Exec(`
+		UPDATE transactions 
+		SET sort_business = CASE
+			WHEN is_business = 1 THEN 'Business'
+			ELSE 'Personal'
+		END
+		WHERE sort_business = '' OR sort_business IS NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to update sort_business: %v", err)
+	}
+
+	log.Printf("✅ Populated sortable columns for existing transactions")
 	return nil
 }
 
@@ -919,7 +970,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 
 	// Build base query
 	baseQuery := `
-		SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business
+		SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business, sort_category, sort_business
 		FROM transactions
 		WHERE 1=1
 	`
@@ -987,7 +1038,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// For total count (before LIMIT/OFFSET)
-	countQuery := strings.Replace(baseQuery, "SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business", "SELECT COUNT(*)", 1)
+	countQuery := strings.Replace(baseQuery, "SELECT id, date, vendor, amount, card, category, purpose, expensable, type, source_file, schedule_c_line, is_business, sort_category, sort_business", "SELECT COUNT(*)", 1)
 	countArgs := make([]interface{}, len(args))
 	copy(countArgs, args)
 
@@ -1013,19 +1064,26 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			orderClause += "date DESC" // Default: newest first
 		}
 	case "category":
+		log.Printf("🎯 CATEGORY CASE HIT - sortOrder: '%s'", sortOrder)
 		if sortOrder == "desc" {
-			orderClause += "category DESC"
+			orderClause += "sort_category DESC"
+			log.Printf("🎯 Added sort_category DESC to orderClause")
 		} else {
-			orderClause += "category ASC" // Default: alphabetical A-Z
+			orderClause += "sort_category ASC" // Default: alphabetical A-Z
+			log.Printf("🎯 Added sort_category ASC to orderClause")
 		}
 	case "business":
+		log.Printf("🎯 BUSINESS CASE HIT - sortOrder: '%s'", sortOrder)
 		if sortOrder == "asc" {
-			orderClause += "CAST(is_business AS INTEGER) ASC, date DESC" // Personal (0) first, then business (1)
+			orderClause += "sort_business ASC, date DESC" // Personal first, then business
+			log.Printf("🎯 Added sort_business ASC to orderClause")
 		} else {
-			orderClause += "CAST(is_business AS INTEGER) DESC, date DESC" // Business (1) first, then personal (0)
+			orderClause += "sort_business DESC, date DESC" // Business first, then personal
+			log.Printf("🎯 Added sort_business DESC to orderClause")
 		}
 	default:
 		// Default sort: by date, newest first
+		log.Printf("🎯 DEFAULT CASE HIT - sortBy was: '%s'", sortBy)
 		orderClause += "date DESC"
 	}
 
@@ -1036,6 +1094,14 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	log.Printf("🔍 Sorting Debug - sortBy: '%s', sortOrder: '%s'", sortBy, sortOrder)
 	log.Printf("🔍 Query: %s", query)
 	log.Printf("🔍 Order Clause: %s", orderClause)
+
+	// Extra validation - ensure we're not getting empty sort parameters
+	if sortBy == "" {
+		log.Printf("⚠️ WARNING: sortBy is empty, using default date sorting")
+	}
+	if sortOrder == "" {
+		log.Printf("⚠️ WARNING: sortOrder is empty, using default DESC")
+	}
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -1049,7 +1115,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var tx Transaction
 		err := rows.Scan(&tx.ID, &tx.Date, &tx.Vendor, &tx.Amount, &tx.Card,
-			&tx.Category, &tx.Purpose, &tx.Expensable, &tx.Type, &tx.SourceFile, &tx.ScheduleCLine, &tx.IsBusiness)
+			&tx.Category, &tx.Purpose, &tx.Expensable, &tx.Type, &tx.SourceFile, &tx.ScheduleCLine, &tx.IsBusiness, &tx.SortCategory, &tx.SortBusiness)
 		if err != nil {
 			log.Printf("Error scanning transaction: %v", err)
 			continue
