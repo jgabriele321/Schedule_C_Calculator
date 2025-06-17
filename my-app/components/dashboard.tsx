@@ -24,7 +24,7 @@ import {
   RefreshCw,
   ChevronDown,
   Settings,
-  Trash2
+  XCircle
 } from "lucide-react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -148,6 +148,8 @@ export function Dashboard() {
         console.log("✅ Data found, setting hasData=true and staying on upload tab as default")
         setHasData(true)
         setSummary(summaryData)
+        // Load business summary for hero numbers
+        calculateBusinessSummary()
         // Keep upload tab as default - don't auto-switch to overview
       } else {
         console.log("❌ No data found, staying on upload tab")
@@ -466,6 +468,8 @@ export function Dashboard() {
       if (response.success) {
         setMileageData(response)
         setError(null)
+        // Update hero numbers to include new mileage deduction
+        calculateBusinessSummary()
       }
     } catch (error) {
       console.error("Failed to save mileage data:", error)
@@ -508,6 +512,8 @@ export function Dashboard() {
       if (response.success) {
         setHomeOfficeData(response)
         setError(null)
+        // Update hero numbers to include new home office deduction
+        calculateBusinessSummary()
       }
     } catch (error) {
       console.error("Failed to save home office data:", error)
@@ -678,6 +684,8 @@ export function Dashboard() {
       await api.toggleBusiness(transactionId, isBusiness)
       // Success - keep the optimistic update and refresh master toggle state
       checkOverallBusinessStatus()
+      // Update hero numbers in real-time
+      calculateBusinessSummary()
     } catch (error) {
       console.error("Failed to toggle business status:", error)
       // Revert on error
@@ -701,7 +709,7 @@ export function Dashboard() {
       const businessTransactions = allTransactions.filter((t: any) => t.is_business)
       const personalTransactions = allTransactions.filter((t: any) => !t.is_business)
       
-      const businessExpenses = businessTransactions
+      const transactionBusinessExpenses = businessTransactions
         .filter((t: any) => t.type === 'expense')
         .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
       
@@ -713,14 +721,33 @@ export function Dashboard() {
         .filter((t: any) => t.type === 'expense')
         .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
       
+      // Load mileage and home office deductions to include in total
+      let mileageDeduction = 0
+      let homeOfficeDeduction = 0
+      
+      try {
+        const deductionsData = await api.get("/deductions")
+        mileageDeduction = deductionsData.vehicle_deduction || 0
+        homeOfficeDeduction = deductionsData.home_office_deduction || 0
+      } catch (error) {
+        console.error("Failed to load deductions for hero numbers:", error)
+      }
+      
+      // Total business expenses = transaction expenses + mileage + home office
+      const totalBusinessExpenses = transactionBusinessExpenses + mileageDeduction + homeOfficeDeduction
+      
       setBusinessSummary({
-        business_expenses: businessExpenses,
+        business_expenses: totalBusinessExpenses,
         business_income: businessIncome,
         business_transactions: businessTransactions.length,
         personal_transactions: personalTransactions.length,
-        net_profit_loss: businessIncome - businessExpenses,
+        net_profit_loss: businessIncome - totalBusinessExpenses,
         personal_expenses: personalExpenses,
-        total_transactions: allTransactions.length
+        total_transactions: allTransactions.length,
+        // Add breakdown for debugging
+        transaction_expenses: transactionBusinessExpenses,
+        mileage_deduction: mileageDeduction,
+        home_office_deduction: homeOfficeDeduction
       })
     } catch (error) {
       console.error("Failed to calculate business summary:", error)
@@ -757,6 +784,9 @@ export function Dashboard() {
       
       // Update the master toggle state
       setAllBusinessSelected(newState)
+      
+      // Update hero numbers after bulk toggle
+      calculateBusinessSummary()
     } catch (error) {
       console.error("Failed to toggle all business status:", error)
     } finally {
@@ -822,6 +852,9 @@ export function Dashboard() {
       
       // Update overall business status
       await checkOverallBusinessStatus()
+      
+      // Update hero numbers after recurring changes
+      calculateBusinessSummary()
     } catch (error) {
       console.error("Failed to toggle all recurring transactions:", error)
     } finally {
@@ -847,6 +880,9 @@ export function Dashboard() {
       
       // Update overall business status
       await checkOverallBusinessStatus()
+      
+      // Update hero numbers after recurring transaction change
+      calculateBusinessSummary()
     } catch (error) {
       console.error("Failed to toggle recurring transaction business status:", error)
       // Revert on error
@@ -934,12 +970,6 @@ export function Dashboard() {
 
   const renderUpload = () => (
     <div className="max-w-4xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-white">Upload CSV Files</h1>
-        <p className="text-lg text-gray-400">Import your bank statements and credit card transactions</p>
-      </div>
-
       {/* Upload Card */}
       <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-sm">
         <CardContent className="p-8">
@@ -1257,11 +1287,23 @@ export function Dashboard() {
           </Card>
         </div>
 
+        {/* Success Feedback and Encouragement */}
         {businessSummary && businessSummary.business_transactions === 0 && (
           <Alert className="border-amber-900 bg-amber-900/20">
             <AlertCircle className="h-4 w-4 text-amber-400" />
             <AlertDescription className="text-amber-300">
               No business transactions selected. Go to the Transactions tab and mark transactions as business expenses to see your Schedule C overview.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {businessSummary && businessSummary.business_transactions > 0 && (
+          <Alert className="border-green-700 bg-green-900/20">
+            <Check className="h-4 w-4 text-green-400" />
+            <AlertDescription className="text-green-300">
+              Great progress! You've categorized {businessSummary.business_transactions} business transactions. 
+              {businessSummary.business_transactions >= 10 && " You're well on your way to completing your Schedule C!"}
+              {businessSummary.business_transactions >= 50 && " Excellent work - your accountant will be impressed with this organization!"}
             </AlertDescription>
           </Alert>
         )}
@@ -1728,15 +1770,49 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Transactions Table */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-gray-100">Transactions</CardTitle>
-            <CardDescription className="text-gray-400">
-              Page {currentPage} of {Math.ceil(totalTransactions / pageSize)} • {totalTransactions} total transactions
-            </CardDescription>
+        {/* Enhanced Transactions Table - Card-like Layout */}
+        <Card className="bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900 border-gray-600 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold text-gray-100 flex items-center space-x-2">
+                  <Receipt className="h-5 w-5 text-blue-400" />
+                  <span>Transaction Review</span>
+                </CardTitle>
+                <CardDescription className="text-gray-300 mt-1">
+                  Page {currentPage} of {Math.ceil(totalTransactions / pageSize)} • {totalTransactions} total transactions
+                </CardDescription>
+              </div>
+              {businessSummary && (
+                <div className="text-right">
+                  <div className="text-sm text-gray-300">Categorization Progress</div>
+                  <div className="text-lg font-semibold text-green-400 flex items-center space-x-2">
+                    <span>{businessSummary.business_transactions} business selected</span>
+                    {businessSummary.business_transactions > 0 && (
+                      <div className="text-green-400 animate-pulse">
+                        ✓
+                      </div>
+                    )}
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="mt-2 w-32">
+                    <div className="bg-gray-600 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
+                        style={{ 
+                          width: `${Math.min(100, (businessSummary.business_transactions / businessSummary.total_transactions) * 100)}%` 
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {Math.round((businessSummary.business_transactions / businessSummary.total_transactions) * 100)}% categorized
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -1753,10 +1829,10 @@ export function Dashboard() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="bg-gray-700/50">
                     <tr className="border-b border-gray-600">
                       <th 
-                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSort("date")}
                       >
                         <div className="flex items-center space-x-1">
@@ -1773,7 +1849,7 @@ export function Dashboard() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSort("vendor")}
                       >
                         <div className="flex items-center space-x-1">
@@ -1790,7 +1866,7 @@ export function Dashboard() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSort("amount")}
                       >
                         <div className="flex items-center space-x-1">
@@ -1807,7 +1883,7 @@ export function Dashboard() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSort("category")}
                       >
                         <div className="flex items-center space-x-1">
@@ -1824,7 +1900,7 @@ export function Dashboard() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-2 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSort("business")}
                       >
                         <div className="flex items-center space-x-1">
@@ -1843,30 +1919,59 @@ export function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {transactions.map((transaction: any) => (
-                      <tr key={transaction.id} className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors">
-                        <td className="py-3 px-2 text-gray-300">
-                          {new Date(transaction.date).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-2 text-gray-100 max-w-[200px] truncate">
-                          {transaction.vendor || transaction.description || 'Unknown'}
-                        </td>
-                        <td className={`py-3 px-2 font-medium ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
-                          {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-2">
+                    {transactions.map((transaction: any) => {
+                      // Determine color coding for visual appeal
+                      let rowColorClass = ""
+                      let borderColorClass = ""
+                      
+                      if (transaction.is_business) {
+                        // Green for business transactions
+                        rowColorClass = "bg-green-900/10 hover:bg-green-900/20"
+                        borderColorClass = "border-l-4 border-l-green-500"
+                      } else {
+                        // Gray for personal transactions  
+                        rowColorClass = "bg-gray-800/20 hover:bg-gray-700/30"
+                        borderColorClass = "border-l-4 border-l-gray-500"
+                      }
+                      
+                      // Yellow for transactions needing attention (uncategorized)
+                      if (!transaction.category || transaction.category === 'uncategorized') {
+                        rowColorClass = "bg-yellow-900/10 hover:bg-yellow-900/20"
+                        borderColorClass = "border-l-4 border-l-yellow-500"
+                      }
+                      
+                      return (
+                        <tr key={transaction.id} className={`border-b border-gray-700/30 transition-all duration-200 ${rowColorClass} ${borderColorClass}`}>
+                          <td className="py-4 px-4 text-gray-300 font-medium">
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </td>
+                          <td className="py-4 px-4 text-gray-100 max-w-[200px]">
+                            <div className="flex items-center space-x-3">
+                              {/* Enhanced color-coded dot indicator */}
+                              <div 
+                                className={`w-3 h-3 rounded-full shadow-lg ${
+                                  transaction.is_business 
+                                    ? 'bg-green-400 shadow-green-400/30' 
+                                    : (!transaction.category || transaction.category === 'uncategorized')
+                                      ? 'bg-yellow-400 shadow-yellow-400/30'
+                                      : 'bg-gray-400 shadow-gray-400/30'
+                                }`}
+                              />
+                              <span className="font-medium truncate">{transaction.vendor || transaction.description || 'Unknown'}</span>
+                            </div>
+                          </td>
+                          <td className={`py-4 px-4 font-bold text-base ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                            {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                          </td>
+                        <td className="py-4 px-4">
                           <div className="flex items-center space-x-2">
                             <div className="relative w-full max-w-[200px]">
                               <Select
                                 value={transaction.category || ""}
                                 onValueChange={(value) => {
-                                  if (value === "other") {
-                                    handleCategoryChange(transaction.id, "Other expenses", 27)
-                                  } else {
-                                    const category = irsCategories.find(cat => cat.name === value)
-                                    if (category) {
-                                      handleCategoryChange(transaction.id, category.name, category.line_number)
-                                    }
+                                  const category = irsCategories.find(cat => cat.name === value)
+                                  if (category) {
+                                    handleCategoryChange(transaction.id, category.name, category.line_number)
                                   }
                                 }}
                                 disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
@@ -1895,9 +2000,6 @@ export function Dashboard() {
                                       {category.name} (L{category.line_number})
                                     </SelectItem>
                                   ))}
-                                  <SelectItem value="other" className="text-white hover:bg-gray-600">
-                                    Other expenses (L27)
-                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                               {/* Visual indicator for categorized transactions */}
@@ -1910,21 +2012,22 @@ export function Dashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center space-x-2">
+                        <td className="py-4 px-4">
+                          <div className="flex items-center space-x-3">
                             <Checkbox
                               checked={transaction.is_business}
                               onCheckedChange={(checked) => handleToggleBusiness(transaction.id, !!checked)}
                               disabled={toggleLoading === transaction.id}
-                              className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                              className="bg-gray-700 border-gray-600 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 w-5 h-5"
                             />
-                            <span className={`text-xs font-medium ${transaction.is_business ? 'text-blue-400' : 'text-gray-400'}`}>
+                            <span className={`text-sm font-semibold ${transaction.is_business ? 'text-green-400' : 'text-gray-400'}`}>
                               {transaction.is_business ? 'Business' : 'Personal'}
                             </span>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -2905,9 +3008,9 @@ export function Dashboard() {
   return (
     <div className="flex h-screen bg-gray-900">
       {/* Sidebar */}
-      <div className="w-56 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
-        {/* Logo */}
-        <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
+      <div className="w-72 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
+        {/* Logo - HIDDEN */}
+        <div className="sidebar-logo p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
           <div className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
               <Calculator className="h-5 w-5 text-white" />
@@ -2923,11 +3026,9 @@ export function Dashboard() {
         <nav className="flex-1 p-3 space-y-1">
           <button
             onClick={() => setActiveTab("upload")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "upload"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "upload" ? "active" : ""
+            } text-gray-300`}
           >
             <Upload className="h-4 w-4" />
             <span className="text-sm font-medium">Upload</span>
@@ -2936,11 +3037,9 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("transactions")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "transactions"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "transactions" ? "active" : ""
+            } text-gray-300`}
           >
             <Receipt className="h-4 w-4" />
             <span className="text-sm font-medium">Transactions</span>
@@ -2949,11 +3048,9 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("recurring")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "recurring"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "recurring" ? "active" : ""
+            } text-gray-300`}
           >
             <RefreshCw className="h-4 w-4" />
             <span className="text-sm font-medium">Recurring</span>
@@ -2962,11 +3059,9 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("mileage")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "mileage"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "mileage" ? "active" : ""
+            } text-gray-300`}
           >
             <CreditCard className="h-4 w-4" />
             <span className="text-sm font-medium">Mileage</span>
@@ -2975,11 +3070,9 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("homeoffice")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "homeoffice"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "homeoffice" ? "active" : ""
+            } text-gray-300`}
           >
             <Settings className="h-4 w-4" />
             <span className="text-sm font-medium">Home Office</span>
@@ -2988,11 +3081,9 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("overview")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "overview"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "overview" ? "active" : ""
+            } text-gray-300`}
           >
             <BarChart3 className="h-4 w-4" />
             <span className="text-sm font-medium">Overview</span>
@@ -3003,11 +3094,9 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("export")}
-            className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors ${
-              activeTab === "export"
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700/50"
-            }`}
+            className={`sidebar-nav-button ${
+              activeTab === "export" ? "active" : ""
+            } text-gray-300`}
           >
             <Download className="h-4 w-4" />
             <span className="text-sm font-medium">Export</span>
@@ -3019,9 +3108,10 @@ export function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-between sticky top-0 z-10">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-100">
+        <header className="h-28 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-center sticky top-0 z-10 relative">
+          <div className="header-content">
+            <p className="schedule-c-brand">Schedule C Assistant</p>
+            <h1 className="header-title">
               {activeTab === "upload" && "Upload CSV Files"}
               {activeTab === "overview" && "Overview"}
               {activeTab === "transactions" && "Transactions"}
@@ -3031,32 +3121,236 @@ export function Dashboard() {
               {activeTab === "categories" && "Categories"}
               {activeTab === "export" && "Export"}
             </h1>
-            <p className="text-xs text-gray-400">
+            <p className="header-subtitle">
               {activeTab === "upload" && "Import your bank statements and credit card transactions"}
               {activeTab === "overview" && "Financial summary and key metrics"}
               {activeTab === "transactions" && "Review and manage your transactions"}
               {activeTab === "recurring" && "Manage recurring transactions and bulk actions"}
-              {activeTab === "mileage" && "Track business miles and calculate IRS standard mileage deduction"}
-              {activeTab === "homeoffice" && "Calculate home office deduction using simplified or actual expense method"}
+              {activeTab === "mileage" && "Track business miles for standard mileage deduction"}
+              {activeTab === "homeoffice" && "Calculate home office deduction"}
               {activeTab === "categories" && "Expense breakdown by category"}
               {activeTab === "export" && "Download reports and tax forms"}
             </p>
           </div>
           
-                      {/* Delete All Data Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                console.log('🗑️ Trash can clicked - opening delete modal')
-                setShowClearDataModal(true)
-              }}
-              className="border-gray-600 text-gray-300 hover:bg-red-700 hover:text-white hover:border-red-600"
-              title="Delete all data"
-            >
-              <Trash2 className="h-4 w-4" />
+          {/* Delete All Data Button - Positioned Absolutely */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              console.log('🗑️ Trash can clicked - opening delete modal')
+              setShowClearDataModal(true)
+            }}
+            className="border-gray-600 text-gray-300 hover:bg-red-700 hover:text-white hover:border-red-600 absolute top-4 right-8"
+            title="Delete all data"
+          >
+            <XCircle className="h-4 w-4" />
           </Button>
         </header>
+
+        {/* NUCLEAR CSS OVERRIDE - UI Improvements v3.9 - Transparent Trash Button 11:48 */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            /* Hero Numbers Section */
+            .force-hero-container {
+              padding: 32px !important;
+              background: linear-gradient(135deg, #1f2937 0%, #111827 50%, #000000 100%) !important;
+              border-bottom: 1px solid #374151 !important;
+              font-family: system-ui, -apple-system, sans-serif !important;
+              display: block !important;
+              width: 100% !important;
+              box-sizing: border-box !important;
+            }
+            .force-hero-title {
+              font-size: 14px !important;
+              font-weight: 600 !important;
+              color: #9ca3af !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.1em !important;
+              margin-bottom: 16px !important;
+              display: block !important;
+              text-align: center !important;
+            }
+            .force-hero-amount {
+              font-size: 72px !important;
+              font-weight: bold !important;
+              background: linear-gradient(90deg, #34d399 0%, #10b981 50%, #059669 100%) !important;
+              -webkit-background-clip: text !important;
+              -webkit-text-fill-color: transparent !important;
+              background-clip: text !important;
+              margin-bottom: 16px !important;
+              line-height: 1.1 !important;
+              display: block !important;
+              text-align: center !important;
+            }
+            .force-hero-stats {
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 24px !important;
+              font-size: 14px !important;
+              color: #9ca3af !important;
+            }
+            
+            /* Lighter Background Override */
+            .bg-gray-900 {
+              background-color: #374151 !important; /* Much lighter gray */
+            }
+            .bg-gray-800 {
+              background-color: #4b5563 !important; /* Lighter sidebar */
+            }
+            
+            /* Sidebar Navigation - Twice as Long */
+            .sidebar-nav-button {
+              padding: 16px 12px !important; /* Double the vertical padding (was 8px) */
+              margin-bottom: 4px !important;
+              border-radius: 8px !important;
+              width: 100% !important;
+              display: flex !important;
+              align-items: center !important;
+              gap: 8px !important;
+              transition: all 0.2s ease !important;
+              font-size: 14px !important;
+              font-weight: 500 !important;
+            }
+            .sidebar-nav-button:hover {
+              background-color: rgba(107, 114, 128, 0.5) !important;
+            }
+            .sidebar-nav-button.active {
+              background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%) !important;
+              color: white !important;
+              box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+            }
+            
+            /* Hide Schedule C Assistant Title and Icon */
+            .sidebar-logo {
+              display: none !important;
+            }
+            
+            /* FORCE SIDEBAR WIDTH OVERRIDE */
+            .w-72 {
+              width: 288px !important; /* Force wider sidebar */
+            }
+            
+            /* FORCE HEADER HEIGHT OVERRIDE */
+            .h-28 {
+              height: 134px !important; /* 20% bigger: 112px * 1.2 = 134px */
+            }
+            
+            /* Center Header Text */
+            .header-content {
+              text-align: center !important;
+              width: 100% !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              justify-content: center !important;
+            }
+            .schedule-c-brand {
+              font-size: 18px !important; /* 20% bigger: 15px * 1.2 = 18px */
+              font-weight: bold !important; /* Very bold */
+              color: #ffffff !important; /* Very white */
+              text-transform: uppercase !important;
+              letter-spacing: 0.1em !important;
+              margin-bottom: -2px !important; /* Even closer - negative margin */
+              text-align: center !important;
+              display: block !important;
+            }
+            .header-title {
+              font-size: 31px !important; /* 20% bigger: 26px * 1.2 = 31px */
+              font-weight: bold !important; /* Very bold */
+              color: #ffffff !important; /* Very white */
+              margin-bottom: -4px !important; /* Even closer - negative margin */
+              text-align: center !important;
+            }
+            .header-subtitle {
+              font-size: 22px !important; /* 20% bigger: 18px * 1.2 = 22px */
+              font-weight: bold !important; /* Very bold */
+              color: #ffffff !important; /* Very white */
+              text-align: center !important;
+              max-width: 720px !important; /* 20% bigger: 600px * 1.2 = 720px */
+              line-height: 1.1 !important; /* Even tighter line height */
+            }
+            
+            /* FORCE TRASH BUTTON POSITIONING AND STYLING - WHITE ICON */
+            header .absolute.top-4.right-8 {
+              position: absolute !important;
+              top: 20px !important; /* Adjusted for bigger header */
+              right: 32px !important;
+              z-index: 50 !important;
+              background: transparent !important; /* White transparent background */
+              border: none !important; /* Remove border */
+              backdrop-filter: none !important; /* Remove any backdrop effects */
+              color: #ffffff !important; /* Force white icon */
+            }
+            header .absolute.top-4.right-8:hover {
+              background: rgba(239, 68, 68, 0.2) !important; /* Light red hover */
+              border: 1px solid rgba(239, 68, 68, 0.5) !important; /* Red border on hover */
+              color: #ffffff !important; /* Keep white on hover */
+            }
+            header .absolute.top-4.right-8 svg {
+              color: #ffffff !important; /* Force white SVG */
+              fill: #ffffff !important; /* Force white fill */
+              stroke: #ffffff !important; /* Force white stroke */
+            }
+            
+            /* TRANSACTION ROW HOVER HIGHLIGHTING */
+            tbody tr:hover {
+              background-color: rgba(59, 130, 246, 0.15) !important; /* Light blue highlight */
+              transform: translateY(-1px) !important; /* Subtle lift effect */
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important; /* Enhanced shadow */
+              transition: all 0.2s ease !important;
+            }
+            tbody tr {
+              transition: all 0.2s ease !important;
+            }
+          `
+        }} />
+        
+        {/* Hero Numbers Section - FORCED STYLING */}
+        {hasData && businessSummary && (
+          <div className="force-hero-container">
+                         <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+               <div style={{ textAlign: 'center' }}>
+                 <p className="force-hero-title">
+                   Total Business Deductions
+                 </p>
+                 <div className="force-hero-amount">
+                   {formatCurrency(businessSummary.business_expenses)}
+                 </div>
+                 <div className="force-hero-stats">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      backgroundColor: '#34d399 !important', 
+                      borderRadius: '50%',
+                      boxShadow: '0 0 10px rgba(52, 211, 153, 0.5)'
+                    }}></div>
+                    <span style={{ color: '#d1d5db !important', fontWeight: '500' }}>
+                      {businessSummary.business_transactions} business transactions
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      backgroundColor: '#9ca3af !important', 
+                      borderRadius: '50%' 
+                    }}></div>
+                    <span style={{ color: '#d1d5db !important', fontWeight: '500' }}>
+                      {businessSummary.personal_transactions} personal transactions
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Calculator style={{ width: '16px', height: '16px', color: '#60a5fa !important' }} />
+                    <span style={{ color: '#60a5fa !important', fontWeight: '600' }}>Ready for Schedule C</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main content */}
         <main className="flex-1 overflow-auto px-8 py-6 bg-gradient-to-b from-gray-900 to-gray-950">

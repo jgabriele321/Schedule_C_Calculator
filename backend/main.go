@@ -962,8 +962,13 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
 			page = p
 		}
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 200 {
-			pageSize = ps
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			// For recurring transactions, allow larger page sizes to group properly
+			if recurring == "true" && ps <= 10000 {
+				pageSize = ps
+			} else if recurring != "true" && ps <= 200 {
+				pageSize = ps
+			}
 		}
 	}
 	offset := (page - 1) * pageSize
