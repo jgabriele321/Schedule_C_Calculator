@@ -24,7 +24,7 @@ import {
   RefreshCw,
   ChevronDown,
   Settings,
-  XCircle
+  Trash
 } from "lucide-react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -3144,7 +3144,7 @@ export function Dashboard() {
             className="border-gray-600 text-gray-300 hover:bg-red-700 hover:text-white hover:border-red-600 absolute top-4 right-8"
             title="Delete all data"
           >
-            <XCircle className="h-4 w-4" />
+            <Trash className="h-4 w-4" />
           </Button>
         </header>
 
@@ -3272,7 +3272,7 @@ export function Dashboard() {
               line-height: 1.1 !important; /* Even tighter line height */
             }
             
-            /* FORCE TRASH BUTTON POSITIONING AND STYLING - WHITE ICON */
+            /* FORCE TRASH BUTTON POSITIONING AND STYLING - WHITE ICON WITH TEXT */
             header .absolute.top-4.right-8 {
               position: absolute !important;
               top: 20px !important; /* Adjusted for bigger header */
@@ -3282,6 +3282,11 @@ export function Dashboard() {
               border: none !important; /* Remove border */
               backdrop-filter: none !important; /* Remove any backdrop effects */
               color: #ffffff !important; /* Force white icon */
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              gap: 4px !important;
+              padding: 8px 6px !important;
             }
             header .absolute.top-4.right-8:hover {
               background: rgba(239, 68, 68, 0.2) !important; /* Light red hover */
@@ -3293,6 +3298,15 @@ export function Dashboard() {
               fill: #ffffff !important; /* Force white fill */
               stroke: #ffffff !important; /* Force white stroke */
             }
+            header .absolute.top-4.right-8::after {
+              content: "Delete All" !important;
+              font-size: 10px !important;
+              color: #ffffff !important;
+              font-weight: 500 !important;
+              text-align: center !important;
+              line-height: 1 !important;
+              white-space: nowrap !important;
+            }
             
             /* TRANSACTION ROW HOVER HIGHLIGHTING */
             tbody tr:hover {
@@ -3303,6 +3317,29 @@ export function Dashboard() {
             }
             tbody tr {
               transition: all 0.2s ease !important;
+            }
+            
+            /* CENTER SCHEDULE C EXPORT HEADER */
+            .space-y-6 > .flex.items-center.justify-between > div:first-child {
+              text-align: center !important;
+              width: 100% !important;
+            }
+            .space-y-6 > .flex.items-center.justify-between > div:first-child h2 {
+              text-align: center !important;
+              margin: 0 auto !important;
+            }
+            .space-y-6 > .flex.items-center.justify-between > div:first-child p {
+              text-align: center !important;
+              margin: 0 auto !important;
+            }
+            .space-y-6 > .flex.items-center.justify-between {
+              position: relative !important;
+            }
+            .space-y-6 > .flex.items-center.justify-between > div:last-child {
+              position: absolute !important;
+              right: 0 !important;
+              top: 50% !important;
+              transform: translateY(-50%) !important;
             }
           `
         }} />
