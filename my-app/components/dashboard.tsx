@@ -142,7 +142,7 @@ export function Dashboard() {
   const checkForExistingData = async () => {
     try {
       console.log("🔍 Checking for existing data...")
-      const summaryData = await api.get("/summary")
+      const summaryData = await api.get("/summary") as any
       console.log("📊 Summary data:", summaryData)
       if (summaryData.success && summaryData.summary.expense_transactions > 0) {
         console.log("✅ Data found, setting hasData=true and staying on upload tab as default")
@@ -183,7 +183,7 @@ export function Dashboard() {
       params.append('sortBy', sortBy)
       params.append('sortOrder', sortOrder)
 
-      const data = await api.get(`/transactions?${params.toString()}`)
+      const data = await api.get(`/transactions?${params.toString()}`) as any
       console.log(`🔍 API Response - Sort: ${sortBy} ${sortOrder}, First 3 transactions:`, 
         data.transactions?.slice(0, 3).map((t: any) => ({ vendor: t.vendor, amount: t.amount, category: t.category, is_business: t.is_business })))
       setTransactions(data.transactions || [])
