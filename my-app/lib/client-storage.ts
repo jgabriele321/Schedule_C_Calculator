@@ -1,3 +1,4 @@
+
 import localforage from 'localforage';
 import Papa from 'papaparse';
 
@@ -144,30 +145,41 @@ export const clientStorage = {
       let date = '';
       let amount = 0;
 
-      // Chase format: Status,Date,Description,Debit,Credit
-      if (row.Description && row.Date) {
+      // Debug: log first few rows to see format
+      if (index < 3) {
+        console.log(`🔍 Row ${index} format:`, Object.keys(row), row);
+      }
+
+      // Check for Amount column first (Amex-style format)
+      if (row.Amount && row.Date && row.Description) {
+        vendor = row.Description || '';
+        date = row.Date || '';
+        amount = Math.abs(parseFloat(row.Amount || '0'));
+        if (index < 3) console.log(`📊 Amex-style format detected: ${vendor}, $${amount}`);
+      }
+      // Chase format with Debit/Credit columns: Status,Date,Description,Debit,Credit
+      else if (row.Description && row.Date && (row.Debit || row.Credit)) {
         vendor = row.Description || '';
         date = row.Date || '';
         const debit = parseFloat(row.Debit || '0');
         const credit = parseFloat(row.Credit || '0');
-        amount = debit > 0 ? debit : -credit; // Expenses are positive
-      }
-      // Amex format: Date,Description,Amount
-      else if (row.Amount && row.Date) {
-        vendor = row.Description || '';
-        date = row.Date || '';
-        amount = Math.abs(parseFloat(row.Amount || '0'));
+        // For expenses: debit column contains positive amounts, but we want positive amounts for expenses
+        // For payments: credit column contains negative amounts, but we want to skip these anyway
+        amount = debit > 0 ? debit : Math.abs(credit); // Keep expenses as positive amounts
+        if (index < 3) console.log(`📊 Chase Debit/Credit format detected: ${vendor}, $${amount}`);
       }
       else {
+        if (index < 3) console.log(`❌ Unknown format, skipping row ${index}`);
         return null; // Skip rows we can't parse
       }
 
       // Skip payments and invalid amounts
       if (amount <= 0 || vendor.toLowerCase().includes('payment')) {
+        if (index < 3) console.log(`⏭️ Skipping row ${index}: amount=${amount}, vendor=${vendor}`);
         return null;
       }
 
-      return {
+      const transaction = {
         id: `${source}-${index}-${Date.now()}`,
         vendor: vendor.trim(),
         date: date.trim(),
@@ -176,6 +188,9 @@ export const clientStorage = {
         source: source,
         raw_data: row
       };
+      
+      if (index < 3) console.log(`✅ Created transaction ${index}:`, transaction);
+      return transaction;
     } catch (error) {
       console.error('Error parsing CSV row:', error, row);
       return null;
@@ -215,20 +230,38 @@ export const llmCategorization = {
       throw new Error('OpenRouter API key required for categorization');
     }
 
-    // This is a simplified version - in production you might want to batch this
+    console.log(`🤖 Starting AI categorization for ${transactions.length} transactions...`);
+    
+    // Process in batches of 5 for faster results
+    const batchSize = 5;
     const categorizedTransactions = [...transactions];
     
-    for (let i = 0; i < categorizedTransactions.length; i++) {
-      try {
-        const transaction = categorizedTransactions[i];
-        const category = await this.categorizeTransaction(transaction, apiKey);
-        categorizedTransactions[i] = { ...transaction, ...category };
-      } catch (error) {
-        console.error('Error categorizing transaction:', error);
-        // Continue with other transactions
+    for (let i = 0; i < categorizedTransactions.length; i += batchSize) {
+      const batch = categorizedTransactions.slice(i, i + batchSize);
+      console.log(`📦 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(categorizedTransactions.length/batchSize)}: transactions ${i+1}-${Math.min(i+batchSize, categorizedTransactions.length)}`);
+      
+      // Process batch transactions concurrently (much faster!)
+      const batchPromises = batch.map(async (transaction, batchIndex) => {
+        try {
+          const category = await this.categorizeTransaction(transaction, apiKey);
+          const globalIndex = i + batchIndex;
+          categorizedTransactions[globalIndex] = { ...transaction, ...category };
+          console.log(`✅ Categorized: ${transaction.vendor} → ${category.is_business ? 'Business' : 'Personal'} (${category.category || 'uncategorized'})`);
+        } catch (error) {
+          console.error('❌ Error categorizing transaction:', transaction.vendor, error);
+          // Keep original transaction if categorization fails
+        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      // Small delay between batches to avoid rate limiting
+      if (i + batchSize < categorizedTransactions.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
+    console.log(`🎉 Completed AI categorization for ${transactions.length} transactions!`);
     return categorizedTransactions;
   },
 
@@ -263,7 +296,7 @@ export const llmCategorization = {
     });
 
     if (!response.ok) {
-      throw new Error('LLM categorization failed');
+      throw new Error(`LLM categorization failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();

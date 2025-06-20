@@ -38,6 +38,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { api } from "@/lib/api"
+import { clientStorage } from "@/lib/client-storage"
 import { formatCurrency, formatDate, formatFileSize, getCategoryColor, getTypeColor } from "@/lib/utils"
 import type { Transaction, Summary, UploadedFile } from "@/types"
 
@@ -102,6 +103,11 @@ export function Dashboard() {
   // Clear data modal state
   const [showClearDataModal, setShowClearDataModal] = useState(false)
   const [clearingData, setClearingData] = useState(false)
+
+  // API Key modal state
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [openRouterApiKey, setOpenRouterApiKey] = useState(process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '')
+  const [categorizationCancelled, setCategorizationCancelled] = useState(false)
 
   // Export state
   const [exportLoading, setExportLoading] = useState(false)
@@ -242,7 +248,7 @@ export function Dashboard() {
   const loadScheduleData = async () => {
     setLoadingSchedule(true)
     try {
-      const data = await api.get("/summary")
+      const data = await api.get("/schedule-c")
       setScheduleData(data)
     } catch (error) {
       console.error("Failed to load Schedule C data:", error)
@@ -254,18 +260,9 @@ export function Dashboard() {
   const handleExportPDF = async () => {
     setExportLoading(true)
     try {
-      // Create a downloadable PDF
-      const response = await fetch('http://localhost:8080/export/pdf')
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.style.display = 'none'
-      a.href = url
-      a.download = `Schedule_C_${new Date().getFullYear()}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      // Use client-side export
+      await api.exportPDF()
+      console.log("✅ PDF export completed successfully")
     } catch (error) {
       console.error("Export to PDF failed:", error)
       alert("Export to PDF failed. Please try again.")
@@ -277,18 +274,9 @@ export function Dashboard() {
   const handleExportCSV = async () => {
     setExportLoading(true)
     try {
-      // Create a downloadable CSV
-      const response = await fetch('http://localhost:8080/export/csv')
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.style.display = 'none'
-      a.href = url
-      a.download = `Schedule_C_Details_${new Date().getFullYear()}.csv`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      // Use client-side export
+      await api.exportCSV()
+      console.log("✅ CSV export completed successfully")
     } catch (error) {
       console.error("Export to CSV failed:", error)
       alert("Export to CSV failed. Please try again.")
@@ -330,12 +318,35 @@ export function Dashboard() {
     }
   }, [transactions, loadTransactions])
 
+  // Show API key modal before categorization  
+  const showApiKeyModalAndCategorize = () => {
+    // If API key is already available from environment, start categorization immediately
+    if (openRouterApiKey.trim()) {
+      console.log('🔑 API key available from environment, starting categorization directly...')
+      triggerManualCategorization()
+    } else {
+      // Otherwise show modal for user to enter API key
+      setShowApiKeyModal(true)
+    }
+  }
+
+  // Cancel categorization
+  const cancelCategorization = () => {
+    console.log('🛑 Categorization cancelled by user')
+    setCategorizationCancelled(true)
+    setShowCategorizationModal(false)
+    setAutoCategorizingAll(false)
+    setAutoCategorizingTransactions(new Set())
+    setCategorizationProgress({ processed: 0, total: 0, currentItem: 'Cancelled' })
+  }
+
   // Manual trigger for auto-categorization with progress tracking
   const triggerManualCategorization = async () => {
     try {
       console.log('🎯 Manually triggering auto-categorization...')
       setAutoCategorizingAll(true)
       setShowCategorizationModal(true)
+      setCategorizationCancelled(false)
       setCategorizationProgress({ processed: 0, total: 0, currentItem: 'Refreshing transaction data...' })
       setAutoCategorizingTransactions(new Set())
       
@@ -367,7 +378,7 @@ export function Dashboard() {
       }, 2000) // Update every 2 seconds
       
       // Start categorization
-      const result = await api.post("/categorize", {})
+      const result = await api.post("/categorize", { api_key: openRouterApiKey })
       console.log('📋 Categorization result:', result)
       
       // Clear the progress simulation
@@ -412,23 +423,7 @@ export function Dashboard() {
     }
   }
 
-  // Auto-categorize after transactions are loaded (more aggressive triggering)
-  useEffect(() => {
-    if (activeTab === "transactions" && transactions.length > 0) {
-      // Find uncategorized BUSINESS transactions
-      const uncategorizedBusiness = transactions.filter(t => 
-        t.is_business && (!t.category || t.category === 'uncategorized' || t.category === '')
-      )
-      
-      if (uncategorizedBusiness.length > 0) {
-        console.log(`🤖 Found ${uncategorizedBusiness.length} uncategorized business transactions on transactions tab, auto-categorizing...`)
-        
-        // Trigger auto-categorization immediately
-        const timer = setTimeout(triggerManualCategorization, 1000)
-        return () => clearTimeout(timer)
-      }
-    }
-  }, [activeTab, transactions.length])
+  // Note: Removed automatic categorization trigger - only manual triggering now
 
   const loadSummary = async () => {
     try {
@@ -702,46 +697,40 @@ export function Dashboard() {
   const calculateBusinessSummary = async () => {
     setIsCalculating(true)
     try {
-      // Load all transactions to get accurate business/personal split
-      const allTransactionsData = await api.get("/transactions?unlimited=true")
-      const allTransactions = allTransactionsData.transactions || []
+      console.log('🧮 Calculating business summary from client storage...')
+      
+      // Load all transactions from client storage (LocalForage)
+      const allTransactions = await clientStorage.getTransactions()
+      const deductions = await clientStorage.getDeductions()
       
       const businessTransactions = allTransactions.filter((t: any) => t.is_business)
       const personalTransactions = allTransactions.filter((t: any) => !t.is_business)
       
-      const transactionBusinessExpenses = businessTransactions
-        .filter((t: any) => t.type === 'expense')
-        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
+      // For CSV transactions, all are expenses (no income)
+      const transactionBusinessExpenses = businessTransactions.reduce((sum: number, t: any) => sum + t.amount, 0)
+      const personalExpenses = personalTransactions.reduce((sum: number, t: any) => sum + t.amount, 0)
       
-      const businessIncome = businessTransactions
-        .filter((t: any) => t.type === 'income')
-        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
-      
-      const personalExpenses = personalTransactions
-        .filter((t: any) => t.type === 'expense')
-        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
-      
-      // Load mileage and home office deductions to include in total
-      let mileageDeduction = 0
-      let homeOfficeDeduction = 0
-      
-      try {
-        const deductionsData = await api.get("/deductions")
-        mileageDeduction = deductionsData.vehicle_deduction || 0
-        homeOfficeDeduction = deductionsData.home_office_deduction || 0
-      } catch (error) {
-        console.error("Failed to load deductions for hero numbers:", error)
-      }
+      // Load mileage and home office deductions 
+      const mileageDeduction = deductions.mileage?.deduction_amount || 0
+      const homeOfficeDeduction = deductions.home_office?.deduction_amount || 0
       
       // Total business expenses = transaction expenses + mileage + home office
       const totalBusinessExpenses = transactionBusinessExpenses + mileageDeduction + homeOfficeDeduction
       
+      console.log('📊 Hero numbers calculated:', {
+        business_transactions: businessTransactions.length,
+        business_expenses: totalBusinessExpenses,
+        transaction_expenses: transactionBusinessExpenses,
+        mileage_deduction: mileageDeduction,
+        home_office_deduction: homeOfficeDeduction
+      })
+      
       setBusinessSummary({
         business_expenses: totalBusinessExpenses,
-        business_income: businessIncome,
+        business_income: 0, // CSV transactions are all expenses
         business_transactions: businessTransactions.length,
         personal_transactions: personalTransactions.length,
-        net_profit_loss: businessIncome - totalBusinessExpenses,
+        net_profit_loss: -totalBusinessExpenses, // All expenses, no income
         personal_expenses: personalExpenses,
         total_transactions: allTransactions.length,
         // Add breakdown for debugging
@@ -2478,11 +2467,35 @@ export function Dashboard() {
             <div
               style={{
                 fontSize: '12px',
-                color: '#6b7280'
+                color: '#6b7280',
+                marginBottom: '24px'
               }}
             >
               This may take a few minutes for large datasets...
             </div>
+
+            {/* Cancel Button */}
+            <button
+              onClick={cancelCategorization}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '500',
+                backgroundColor: '#374151',
+                color: '#f9fafb',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#4b5563'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#374151'
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
         <style>{`
@@ -3562,6 +3575,151 @@ export function Dashboard() {
 
       {/* Progress Modal */}
       {renderCategorizationModal()}
+
+      {/* API Key Modal */}
+      {showApiKeyModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '480px',
+              width: '90%',
+              margin: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: '1px solid #374151'
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ marginBottom: '24px' }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '64px',
+                    height: '64px',
+                    backgroundColor: '#7c3aed',
+                    borderRadius: '50%',
+                    marginBottom: '16px'
+                  }}
+                >
+                  🤖
+                </div>
+                <h3
+                  style={{
+                    fontSize: '20px',
+                    fontWeight: 'bold',
+                    color: '#f9fafb',
+                    marginBottom: '8px',
+                    margin: '0 0 8px 0'
+                  }}
+                >
+                  OpenRouter API Key Required
+                </h3>
+                <p
+                  style={{
+                    color: '#9ca3af',
+                    fontSize: '14px',
+                    marginBottom: '16px',
+                    margin: '0 0 16px 0'
+                  }}
+                >
+                  To use AI categorization, please enter your OpenRouter API key. Get one free at{' '}
+                  <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" style={{ color: '#7c3aed' }}>
+                    openrouter.ai
+                  </a>
+                </p>
+              </div>
+
+              <div style={{ marginBottom: '24px', textAlign: 'left' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#f3f4f6',
+                    marginBottom: '8px'
+                  }}
+                >
+                  OpenRouter API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="sk-or-v1-..."
+                  value={openRouterApiKey}
+                  onChange={(e) => setOpenRouterApiKey(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '14px',
+                    backgroundColor: '#374151',
+                    border: '1px solid #4b5563',
+                    borderRadius: '6px',
+                    color: '#f9fafb',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button
+                  onClick={() => setShowApiKeyModal(false)}
+                  style={{
+                    padding: '12px 24px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    backgroundColor: '#374151',
+                    color: '#f9fafb',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (openRouterApiKey.trim()) {
+                      triggerManualCategorization()
+                    } else {
+                      alert('Please enter a valid API key')
+                    }
+                  }}
+                  disabled={!openRouterApiKey.trim()}
+                  style={{
+                    padding: '12px 24px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    backgroundColor: openRouterApiKey.trim() ? '#7c3aed' : '#4b5563',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: openRouterApiKey.trim() ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  Start AI Categorization
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
