@@ -243,10 +243,16 @@ export const llmCategorization = {
       // Process batch transactions concurrently (much faster!)
       const batchPromises = batch.map(async (transaction, batchIndex) => {
         try {
-          const category = await this.categorizeTransaction(transaction, apiKey);
+          const categoryData = await this.categorizeTransaction(transaction, apiKey);
           const globalIndex = i + batchIndex;
-          categorizedTransactions[globalIndex] = { ...transaction, ...category };
-          console.log(`✅ Categorized: ${transaction.vendor} → ${category.is_business ? 'Business' : 'Personal'} (${category.category || 'uncategorized'})`);
+          // IMPORTANT: Only update category and purpose, NOT is_business status!
+          categorizedTransactions[globalIndex] = { 
+            ...transaction, 
+            category: categoryData.category || transaction.category,
+            purpose: categoryData.purpose || transaction.purpose
+            // Explicitly NOT updating is_business - user already marked these as business
+          };
+          console.log(`✅ Categorized: ${transaction.vendor} → ${categoryData.category || 'uncategorized'}`);
         } catch (error) {
           console.error('❌ Error categorizing transaction:', transaction.vendor, error);
           // Keep original transaction if categorization fails
@@ -287,9 +293,8 @@ export const llmCategorization = {
             
             Respond with JSON only:
             {
-              "category": "one of: office_supplies, travel, meals, advertising, utilities, software, professional_services, other",
-              "purpose": "brief business purpose description",
-              "is_business": boolean (true if clearly business expense)
+              "category": "one of: office_supplies, travel, meals, advertising, utilities, software, professional_services, other, insurance, interest, rent, taxes_licenses",
+              "purpose": "brief business purpose description"
             }`
         }]
       })

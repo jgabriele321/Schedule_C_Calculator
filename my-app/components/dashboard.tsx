@@ -250,6 +250,7 @@ export function Dashboard() {
     try {
       const data = await api.get("/schedule-c")
       setScheduleData(data)
+      console.log("📊 Loaded Schedule C data:", data)
     } catch (error) {
       console.error("Failed to load Schedule C data:", error)
     } finally {
@@ -660,6 +661,13 @@ export function Dashboard() {
     }
   }, [hasData, activeTab])
 
+  // Load Schedule C data when export tab is active
+  useEffect(() => {
+    if (hasData && activeTab === "export") {
+      loadScheduleData()
+    }
+  }, [hasData, activeTab])
+
   const filteredTransactions = transactions
 
   const uniqueCards = Array.from(new Set((transactions || []).map((t) => t.card)))
@@ -913,19 +921,31 @@ export function Dashboard() {
     }
   }
 
-  // Load IRS categories
+  // Load IRS categories (static list for client-only app)
   const loadIrsCategories = async () => {
     if (categoriesLoaded) return
     
     console.log("🏷️ Loading IRS categories...")
-    try {
-      const data = await api.get("/categories")
-      console.log("🏷️ Categories loaded:", data.categories?.length || 0, "categories")
-      setIrsCategories(data.categories || [])
-      setCategoriesLoaded(true)
-    } catch (error) {
-      console.error("❌ Failed to load IRS categories:", error)
-    }
+    
+    // Static list of IRS Schedule C categories
+    const categories = [
+      { id: 1, name: "Office Supplies", value: "office_supplies", schedule_c_line: 18 },
+      { id: 2, name: "Travel", value: "travel", schedule_c_line: 24 },
+      { id: 3, name: "Meals", value: "meals", schedule_c_line: 24 },
+      { id: 4, name: "Advertising", value: "advertising", schedule_c_line: 8 },
+      { id: 5, name: "Utilities", value: "utilities", schedule_c_line: 25 },
+      { id: 6, name: "Software", value: "software", schedule_c_line: 18 },
+      { id: 7, name: "Professional Services", value: "professional_services", schedule_c_line: 17 },
+      { id: 8, name: "Other", value: "other", schedule_c_line: 27 },
+      { id: 9, name: "Insurance", value: "insurance", schedule_c_line: 15 },
+      { id: 10, name: "Interest", value: "interest", schedule_c_line: 16 },
+      { id: 11, name: "Rent", value: "rent", schedule_c_line: 20 },
+      { id: 12, name: "Taxes & Licenses", value: "taxes_licenses", schedule_c_line: 23 }
+    ]
+    
+    console.log("🏷️ Categories loaded:", categories.length, "categories")
+    setIrsCategories(categories)
+    setCategoriesLoaded(true)
   }
 
   // Update transaction category
@@ -933,14 +953,16 @@ export function Dashboard() {
     try {
       setToggleLoading(`category-${transactionId}`)
       
-      // Update via API
-      await api.post("/classify", {
-        transaction_id: transactionId,
-        category: categoryName,
-        schedule_c_line: lineNumber
-      })
+      // Update in client storage
+      const allTransactions = await clientStorage.getTransactions()
+      const updatedTransactions = allTransactions.map(t => 
+        t.id === transactionId 
+          ? { ...t, category: categoryName, schedule_c_line: lineNumber } 
+          : t
+      )
+      await clientStorage.saveTransactions(updatedTransactions)
       
-      // Update local state optimistically
+      // Update local state
       setTransactions(prev => 
         prev.map(t => 
           t.id === transactionId 
@@ -950,6 +972,12 @@ export function Dashboard() {
       )
       
       console.log(`✅ Category updated: ${categoryName} (Line ${lineNumber})`)
+      
+      // Reload transactions to ensure consistency
+      await loadTransactions()
+      
+      // Recalculate business summary for Schedule C
+      await calculateBusinessSummary()
     } catch (error) {
       console.error(`Failed to update category for transaction ${transactionId}:`, error)
     } finally {
@@ -1958,9 +1986,9 @@ export function Dashboard() {
                               <Select
                                 value={transaction.category || ""}
                                 onValueChange={(value) => {
-                                  const category = irsCategories.find(cat => cat.name === value)
+                                  const category = irsCategories.find(cat => cat.value === value)
                                   if (category) {
-                                    handleCategoryChange(transaction.id, category.name, category.line_number)
+                                    handleCategoryChange(transaction.id, category.value, category.schedule_c_line)
                                   }
                                 }}
                                 disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
@@ -1985,8 +2013,8 @@ export function Dashboard() {
                                     </SelectItem>
                                   )}
                                   {irsCategories.map((category) => (
-                                    <SelectItem key={category.id} value={category.name} className="text-white hover:bg-gray-600">
-                                      {category.name} (L{category.line_number})
+                                    <SelectItem key={category.id} value={category.value} className="text-white hover:bg-gray-600">
+                                      {category.name} (L{category.schedule_c_line})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>

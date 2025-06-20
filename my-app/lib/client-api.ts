@@ -188,13 +188,51 @@ export const clientApi = {
         if (!data.api_key) {
           throw new Error('API key required for categorization');
         }
-        const transactionsToCategorize = await clientStorage.getTransactions();
+        
+        // Get only uncategorized business transactions
+        const allTransactions = await clientStorage.getTransactions();
+        const uncategorizedBusiness = allTransactions.filter(t => 
+          t.is_business && (!t.category || t.category === 'uncategorized' || t.category === '')
+        );
+        
+        if (uncategorizedBusiness.length === 0) {
+          return { 
+            success: true, 
+            processed: 0, 
+            total: 0,
+            message: 'No uncategorized business transactions found' 
+          };
+        }
+        
+        console.log(`🤖 Starting AI categorization for ${uncategorizedBusiness.length} transactions...`);
+        
+        // Categorize only the uncategorized business transactions
         const categorized = await llmCategorization.categorizeTransactions(
-          transactionsToCategorize, 
+          uncategorizedBusiness, 
           data.api_key
         );
-        await clientStorage.saveTransactions(categorized);
-        return { success: true };
+        
+        // Merge categorized transactions back into the full list
+        const updatedTransactions = allTransactions.map(t => {
+          const categorizedVersion = categorized.find(ct => ct.id === t.id);
+          return categorizedVersion || t;
+        });
+        
+        // Save all transactions
+        await clientStorage.saveTransactions(updatedTransactions);
+        
+        // Count how many were actually categorized
+        const processedCount = categorized.filter(t => 
+          t.category && t.category !== '' && t.category !== 'uncategorized'
+        ).length;
+        
+        console.log(`✅ AI categorization complete: ${processedCount} of ${uncategorizedBusiness.length} transactions categorized`);
+        
+        return { 
+          success: true, 
+          processed: processedCount,
+          total: uncategorizedBusiness.length
+        };
 
       default:
         throw new Error(`Unknown endpoint: ${endpoint}`);
@@ -288,7 +326,8 @@ export const clientApi = {
     const summary = await clientStorage.calculateBusinessSummary();
     
     // Calculate business expenses by category
-    const businessTransactions = transactions.filter(t => t.is_business && t.amount < 0);
+    const businessTransactions = transactions.filter(t => t.is_business);
+    const businessExpenses = businessTransactions.filter(t => t.amount > 0); // Expenses are positive in our system
     
     // Initialize Schedule C line items
     const scheduleC = {
@@ -312,11 +351,63 @@ export const clientApi = {
       line24_travel_meals: 0,
       line25_utilities: 0,
       line26_wages: 0,
-      line27_other_expenses: Math.abs(summary.total_business_expenses), // Put all business expenses here for now
-      line28_total_expenses: Math.abs(summary.total_business_expenses) + (deductions.mileage?.deduction_amount || 0),
+      line27_other_expenses: 0,
+      line28_total_expenses: 0,
       line30_home_office: deductions.home_office?.deduction_amount || 0,
-      line31_net_profit_loss: 0 - Math.abs(summary.total_business_expenses) - (deductions.mileage?.deduction_amount || 0) - (deductions.home_office?.deduction_amount || 0)
+      line31_net_profit_loss: 0
     };
+    
+    // Map transactions to Schedule C lines based on category
+    businessExpenses.forEach(transaction => {
+      const amount = transaction.amount;
+      
+      switch (transaction.category) {
+        case 'advertising':
+          scheduleC.line8_advertising += amount;
+          break;
+        case 'insurance':
+          scheduleC.line15_insurance += amount;
+          break;
+        case 'interest':
+          scheduleC.line16_interest += amount;
+          break;
+        case 'professional_services':
+          scheduleC.line17_legal_professional += amount;
+          break;
+        case 'office_supplies':
+        case 'software':
+          scheduleC.line18_office_expense += amount;
+          break;
+        case 'rent':
+          scheduleC.line20_rent_lease += amount;
+          break;
+        case 'taxes_licenses':
+          scheduleC.line23_taxes_licenses += amount;
+          break;
+        case 'travel':
+        case 'meals':
+          scheduleC.line24_travel_meals += amount;
+          break;
+        case 'utilities':
+          scheduleC.line25_utilities += amount;
+          break;
+        case 'other':
+        default:
+          // Uncategorized or other expenses go to line 27
+          scheduleC.line27_other_expenses += amount;
+          break;
+      }
+    });
+    
+    // Calculate totals
+    const transactionExpenseTotal = Object.keys(scheduleC)
+      .filter(key => key.startsWith('line') && key !== 'line1_gross_receipts' && 
+              key !== 'line28_total_expenses' && key !== 'line30_home_office' && 
+              key !== 'line31_net_profit_loss')
+      .reduce((sum, key) => sum + scheduleC[key as keyof typeof scheduleC], 0);
+    
+    scheduleC.line28_total_expenses = transactionExpenseTotal;
+    scheduleC.line31_net_profit_loss = 0 - scheduleC.line28_total_expenses - scheduleC.line30_home_office;
     
     return {
       tax_year: new Date().getFullYear(),
@@ -324,8 +415,13 @@ export const clientApi = {
       summary: {
         total_transactions: transactions.length,
         business_transactions: businessTransactions.length,
-        total_deductions: scheduleC.line28_total_expenses + scheduleC.line30_home_office
-      }
+        total_deductions: scheduleC.line28_total_expenses + scheduleC.line30_home_office,
+        income_transactions: 0, // No income tracking in CSV imports
+        expense_transactions: businessExpenses.length,
+        vehicle_miles: deductions.mileage?.business_miles || 0,
+        home_office_sqft: deductions.home_office?.square_feet || 0
+      },
+      calculation_date: new Date().toLocaleDateString()
     };
   },
 
