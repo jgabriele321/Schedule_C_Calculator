@@ -3310,19 +3310,21 @@ export function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-28 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-center sticky top-0 z-10 relative">
-          {/* Mobile Hamburger Menu - Only visible on mobile */}
+          {/* Mobile Hamburger Menu - Top Left Corner */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="mobile-hamburger-button absolute top-4 left-4 z-20"
+            className="mobile-hamburger-button absolute top-2 left-2 z-20"
             style={{
               display: 'none', // Will be shown on mobile via CSS
-              backgroundColor: 'transparent',
-              border: 'none',
+              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
               color: '#ffffff',
-              padding: '8px',
-              borderRadius: '6px',
-              cursor: 'pointer'
+              padding: '10px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
             }}
+            title="Open Navigation Menu"
           >
             <div style={{ width: '24px', height: '24px', position: 'relative' }}>
               <div style={{
@@ -3637,9 +3639,13 @@ export function Dashboard() {
                 display: none !important; /* Hide desktop sidebar on mobile */
               }
               
-              /* Mobile Hamburger Button - Show on Mobile */
+              /* Mobile Hamburger Button - Top Left Corner */
               .mobile-hamburger-button {
                 display: block !important; /* Show hamburger on mobile */
+                position: fixed !important; /* Fixed positioning for better visibility */
+                top: 8px !important; /* Very top of screen */
+                left: 8px !important; /* Very left of screen */
+                z-index: 9999 !important; /* Above everything */
               }
               
               /* Mobile Navigation - Touch-Friendly */
@@ -3743,6 +3749,13 @@ export function Dashboard() {
               }
               .overflow-x-auto {
                 display: none !important; /* Hide table on very small screens */
+              }
+              
+              /* Enhanced Hamburger Button for Small Screens */
+              .mobile-hamburger-button {
+                top: 6px !important; /* Even closer to top edge */
+                left: 6px !important; /* Even closer to left edge */
+                padding: 8px !important; /* Slightly smaller padding */
               }
             }
             
