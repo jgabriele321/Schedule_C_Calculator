@@ -86,6 +86,9 @@ export function Dashboard() {
   // Toggle loading state
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
 
+  // Mobile navigation state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   // Recurring transactions state
   const [recurringTransactions, setRecurringTransactions] = useState<any[]>([])
   const [recurringLoading, setRecurringLoading] = useState(false)
@@ -2049,6 +2052,163 @@ export function Dashboard() {
                 </table>
               </div>
             )}
+
+            {/* Mobile Card View - Only visible on very small screens */}
+            {!loading && transactions.length > 0 && (
+              <div className="mobile-transaction-cards">
+                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {transactions.map((transaction: any) => {
+                    // Determine color coding for mobile cards
+                    let cardBorderColor = ""
+                    let cardBgColor = ""
+                    
+                    if (transaction.is_business) {
+                      cardBorderColor = "#10b981"
+                      cardBgColor = "rgba(16, 185, 129, 0.1)"
+                    } else if (!transaction.category || transaction.category === 'uncategorized') {
+                      cardBorderColor = "#f59e0b"
+                      cardBgColor = "rgba(245, 158, 11, 0.1)"
+                    } else {
+                      cardBorderColor = "#6b7280"
+                      cardBgColor = "rgba(107, 114, 128, 0.1)"
+                    }
+                    
+                    return (
+                      <div
+                        key={transaction.id}
+                        style={{
+                          backgroundColor: cardBgColor,
+                          border: `2px solid ${cardBorderColor}`,
+                          borderRadius: '12px',
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                        }}
+                      >
+                        {/* Card Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ 
+                              fontSize: '16px', 
+                              fontWeight: 'bold', 
+                              color: '#f3f4f6',
+                              marginBottom: '4px',
+                              lineHeight: '1.2'
+                            }}>
+                              {transaction.vendor || transaction.description || 'Unknown'}
+                            </div>
+                            <div style={{ 
+                              fontSize: '14px', 
+                              color: '#d1d5db' 
+                            }}>
+                              {new Date(transaction.date).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div style={{
+                            fontSize: '18px',
+                            fontWeight: 'bold',
+                            color: transaction.type === 'income' ? '#10b981' : '#ef4444',
+                            textAlign: 'right'
+                          }}>
+                            {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                          </div>
+                        </div>
+
+                        {/* Business/Personal Toggle */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between',
+                          padding: '12px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                          borderRadius: '8px'
+                        }}>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            color: '#d1d5db',
+                            fontWeight: '500'
+                          }}>
+                            Business Expense:
+                          </span>
+                          <label style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px',
+                            cursor: 'pointer'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={transaction.is_business}
+                              onChange={(e) => handleToggleBusiness(transaction.id, e.target.checked)}
+                              disabled={toggleLoading === transaction.id}
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                accentColor: '#10b981'
+                              }}
+                            />
+                            <span style={{
+                              fontSize: '14px',
+                              fontWeight: 'bold',
+                              color: transaction.is_business ? '#10b981' : '#9ca3af'
+                            }}>
+                              {transaction.is_business ? 'Yes' : 'No'}
+                            </span>
+                          </label>
+                        </div>
+
+                        {/* Category Selection */}
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: 'column',
+                          gap: '8px'
+                        }}>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            color: '#d1d5db',
+                            fontWeight: '500'
+                          }}>
+                            Category:
+                          </span>
+                          <select
+                            value={transaction.category || ""}
+                            onChange={(e) => {
+                              const category = irsCategories.find(cat => cat.value === e.target.value)
+                              if (category) {
+                                handleCategoryChange(transaction.id, category.value, category.schedule_c_line)
+                              }
+                            }}
+                            disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
+                            style={{
+                              padding: '12px',
+                              backgroundColor: '#374151',
+                              border: '1px solid #6b7280',
+                              borderRadius: '8px',
+                              color: '#f3f4f6',
+                              fontSize: '14px',
+                              minHeight: '44px'
+                            }}
+                          >
+                            <option value="">
+                              {autoCategorizingTransactions.has(transaction.id) 
+                                ? "Auto-categorizing..." 
+                                : "Select category..."}
+                            </option>
+                            {irsCategories.map((category) => (
+                              <option key={category.id} value={category.value}>
+                                {category.name} (L{category.schedule_c_line})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -3150,6 +3310,51 @@ export function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-28 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-center sticky top-0 z-10 relative">
+          {/* Mobile Hamburger Menu - Only visible on mobile */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="mobile-hamburger-button absolute top-4 left-4 z-20"
+            style={{
+              display: 'none', // Will be shown on mobile via CSS
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: '#ffffff',
+              padding: '8px',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ width: '24px', height: '24px', position: 'relative' }}>
+              <div style={{
+                position: 'absolute',
+                width: '20px',
+                height: '2px',
+                backgroundColor: '#ffffff',
+                top: '6px',
+                left: '2px',
+                borderRadius: '1px'
+              }}></div>
+              <div style={{
+                position: 'absolute', 
+                width: '20px',
+                height: '2px',
+                backgroundColor: '#ffffff',
+                top: '11px',
+                left: '2px',
+                borderRadius: '1px'
+              }}></div>
+              <div style={{
+                position: 'absolute',
+                width: '20px', 
+                height: '2px',
+                backgroundColor: '#ffffff',
+                top: '16px',
+                left: '2px',
+                borderRadius: '1px'
+              }}></div>
+            </div>
+          </button>
+
           <div className="header-content">
             <p className="schedule-c-brand">Schedule C Assistant</p>
             <h1 className="header-title">
@@ -3382,6 +3587,181 @@ export function Dashboard() {
               top: 50% !important;
               transform: translateY(-50%) !important;
             }
+            
+            /* 📱 MOBILE RESPONSIVE OVERRIDES */
+            @media (max-width: 768px) {
+              /* Mobile Hero Numbers - Scale Down */
+              .force-hero-amount {
+                font-size: 48px !important; /* 72px → 48px for mobile */
+                line-height: 1.1 !important;
+              }
+              .force-hero-container {
+                padding: 20px 16px !important; /* Less padding on mobile */
+              }
+              .force-hero-stats {
+                flex-direction: column !important; /* Stack stats vertically */
+                gap: 12px !important;
+                align-items: center !important;
+              }
+              
+              /* Mobile Header - Scale Down */
+              .h-28 {
+                height: 100px !important; /* Smaller header on mobile */
+              }
+              .header-title {
+                font-size: 24px !important; /* 31px → 24px */
+                margin-bottom: -2px !important;
+              }
+              .header-subtitle {
+                font-size: 16px !important; /* 22px → 16px */
+                max-width: 100% !important;
+                line-height: 1.3 !important;
+                padding: 0 8px !important;
+              }
+              .schedule-c-brand {
+                font-size: 14px !important; /* 18px → 14px */
+              }
+              
+              /* Mobile Trash Button - Smaller */
+              header .absolute.top-4.right-8 {
+                top: 12px !important;
+                right: 12px !important;
+                padding: 6px 4px !important;
+              }
+              header .absolute.top-4.right-8::after {
+                font-size: 8px !important;
+              }
+              
+              /* Mobile Sidebar - Hidden on Mobile (uses sheet overlay) */
+              .w-72 {
+                display: none !important; /* Hide desktop sidebar on mobile */
+              }
+              
+              /* Mobile Hamburger Button - Show on Mobile */
+              .mobile-hamburger-button {
+                display: block !important; /* Show hamburger on mobile */
+              }
+              
+              /* Mobile Navigation - Touch-Friendly */
+              .sidebar-nav-button {
+                padding: 20px 16px !important; /* 44px minimum touch target */
+                font-size: 16px !important; /* Larger text for mobile */
+                min-height: 44px !important;
+              }
+              
+              /* Mobile Main Content - Full Width */
+              .flex.h-screen .flex-1 {
+                margin-left: 0 !important; /* Remove sidebar margin */
+              }
+              
+              /* Mobile Tables - Horizontal Scroll */
+              .overflow-x-auto {
+                -webkit-overflow-scrolling: touch !important;
+              }
+              table {
+                min-width: 800px !important; /* Force horizontal scroll */
+              }
+              
+              /* Mobile Transaction Cards - Hidden by default */
+              .mobile-transaction-cards {
+                display: none !important;
+              }
+              
+              /* Mobile Transaction Rows - Larger Touch Targets */
+              tbody tr {
+                height: auto !important;
+                min-height: 60px !important; /* Touch-friendly row height */
+              }
+              tbody td {
+                padding: 12px 8px !important; /* More padding for touch */
+                font-size: 14px !important;
+              }
+              
+              /* Mobile Checkboxes - Larger */
+              input[type="checkbox"] {
+                width: 20px !important;
+                height: 20px !important;
+                min-width: 20px !important;
+                min-height: 20px !important;
+              }
+              
+              /* Mobile Buttons - Touch-Friendly */
+              button {
+                min-height: 44px !important;
+                padding: 12px 16px !important;
+                font-size: 16px !important;
+              }
+              
+              /* Mobile Cards - Full Width */
+              .grid.gap-4.md\\:grid-cols-2.lg\\:grid-cols-4 {
+                grid-template-columns: 1fr !important; /* Single column on mobile */
+                gap: 16px !important;
+              }
+              
+              /* Mobile Upload Area - Touch-Friendly */
+              .border-2.border-dashed {
+                padding: 32px 16px !important;
+                min-height: 120px !important;
+              }
+              
+              /* Mobile Modals - Full Width */
+              .fixed.top-0.left-0.right-0.bottom-0 > div {
+                width: 95% !important;
+                max-width: none !important;
+                margin: 16px !important;
+              }
+            }
+            
+            @media (max-width: 480px) {
+              /* Extra Small Mobile - iPhone SE, etc. */
+              .force-hero-amount {
+                font-size: 36px !important; /* Even smaller for tiny screens */
+              }
+              .header-title {
+                font-size: 20px !important;
+              }
+              .header-subtitle {
+                font-size: 14px !important;
+              }
+              
+              /* Ultra-compact spacing */
+              .force-hero-container {
+                padding: 16px 12px !important;
+              }
+              .px-8 {
+                padding-left: 12px !important;
+                padding-right: 12px !important;
+              }
+              .py-6 {
+                padding-top: 16px !important;
+                padding-bottom: 16px !important;
+              }
+              
+              /* Mobile Card View - Show on very small screens */
+              .mobile-transaction-cards {
+                display: block !important;
+              }
+              .overflow-x-auto {
+                display: none !important; /* Hide table on very small screens */
+              }
+            }
+            
+            /* Touch Device Optimizations - All Sizes */
+            @media (hover: none) and (pointer: coarse) {
+              /* Touch-specific optimizations */
+              button:hover {
+                background-color: transparent !important; /* Disable hover on touch */
+              }
+              .sidebar-nav-button:hover {
+                background-color: rgba(107, 114, 128, 0.3) !important; /* Subtle touch feedback */
+              }
+              
+              /* Larger touch targets for all interactive elements */
+              a, button, input, select, [role="button"] {
+                min-height: 44px !important;
+                min-width: 44px !important;
+              }
+            }
           `
         }} />
         
@@ -3437,6 +3817,147 @@ export function Dashboard() {
           </div>
         </main>
       </div>
+
+      {/* Mobile Navigation Overlay */}
+      {mobileMenuOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 999998,
+            display: 'flex',
+            justifyContent: 'flex-start'
+          }}
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#4b5563',
+              width: '280px',
+              height: '100%',
+              boxShadow: '2px 0 10px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideInFromLeft 0.3s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile Menu Header */}
+            <div style={{
+              padding: '20px',
+              backgroundColor: '#374151',
+              borderBottom: '1px solid #6b7280',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <h2 style={{ 
+                color: '#ffffff', 
+                fontSize: '18px', 
+                fontWeight: 'bold',
+                margin: 0 
+              }}>
+                Schedule C Assistant
+              </h2>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Mobile Navigation Menu */}
+            <nav style={{ flex: 1, padding: '16px', overflow: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {[
+                  { id: 'upload', icon: Upload, label: 'Upload' },
+                  { id: 'transactions', icon: Receipt, label: 'Transactions' },
+                  { id: 'recurring', icon: RefreshCw, label: 'Recurring' },
+                  { id: 'mileage', icon: CreditCard, label: 'Mileage' },
+                  { id: 'homeoffice', icon: Settings, label: 'Home Office' },
+                  { id: 'overview', icon: BarChart3, label: 'Overview' },
+                  { id: 'export', icon: Download, label: 'Export' }
+                ].map((item) => {
+                  const Icon = item.icon
+                  const isActive = activeTab === item.id
+                  
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id)
+                        setMobileMenuOpen(false)
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '16px 12px',
+                        backgroundColor: isActive ? '#2563eb' : 'transparent',
+                        color: isActive ? '#ffffff' : '#d1d5db',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '16px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textAlign: 'left',
+                        minHeight: '48px',
+                        boxShadow: isActive ? '0 4px 12px rgba(37, 99, 235, 0.3)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = 'rgba(107, 114, 128, 0.3)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = 'transparent'
+                        }
+                      }}
+                    >
+                      <Icon style={{ width: '20px', height: '20px' }} />
+                      <span>{item.label}</span>
+                      {isActive && (
+                        <ChevronRight style={{ 
+                          width: '16px', 
+                          height: '16px', 
+                          marginLeft: 'auto' 
+                        }} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideInFromLeft {
+          from {
+            transform: translateX(-100%);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+      `}</style>
 
       {/* Clear Data Modal - Complete CSS Override */}
       {showClearDataModal && (
