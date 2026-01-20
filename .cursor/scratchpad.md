@@ -1048,3 +1048,353 @@ The Schedule C Tax Assistant is now **fully mobile-optimized and ready for produ
 - ✅ **Export Schedule C** from any device
 
 **GITHUB STATUS**: ✅ **SUCCESSFULLY PUSHED TO MAIN BRANCH**
+
+---
+
+## 🔍 **CODE QUALITY RECOMMENDATIONS** 
+
+**Date**: January 20, 2026  
+**Review Type**: Comprehensive codebase analysis for stability, maintainability, and usability
+
+### **10 RECOMMENDATIONS FOR CODE IMPROVEMENT**
+
+---
+
+### **📋 RECOMMENDATION 1: Consolidate Duplicate Type Definitions**
+
+**Problem**: Transaction types are defined in multiple places with inconsistencies:
+- `backend/main.go` has `Transaction` struct
+- `standalone-app/main.go` has a similar but different `Transaction` struct  
+- `my-app/lib/client-storage.ts` has `Transaction` interface
+- `my-app/types/index.ts` has another `Transaction` interface
+
+**Impact**: Type mismatches lead to runtime errors, missing fields, and confusing code maintenance.
+
+**Current Issues**:
+- Backend has `SortCategory` and `SortBusiness` fields not in frontend types
+- Frontend `Transaction` in client-storage.ts uses `source` but types/index.ts uses `card`
+- Go backend uses `ScheduleCLine` but client uses different category mapping
+
+**Recommendation**:
+1. Create a single source of truth for types (e.g., `types/transaction.ts`)
+2. Generate Go structs from TypeScript definitions or vice versa
+3. Add validation to ensure API responses match expected types
+4. Consider using OpenAPI/Swagger for contract-first development
+
+**Priority**: HIGH - Prevents data inconsistency bugs
+
+---
+
+### **📋 RECOMMENDATION 2: Improve Error Handling and User Feedback**
+
+**Problem**: Many error cases are silently logged but don't provide meaningful feedback to users.
+
+**Current Issues**:
+```go
+// backend/main.go line 929
+if err != nil {
+    log.Printf("Failed to insert transaction %s: %v", tx.ID, err)
+    continue // Silently continues, user doesn't know transactions were skipped
+}
+```
+
+```typescript
+// client-storage.ts line 309-314
+try {
+    return JSON.parse(content);
+} catch {
+    return {}; // Silent failure - user doesn't know categorization failed
+}
+```
+
+**Recommendation**:
+1. Create structured error types with user-friendly messages
+2. Return partial success responses (e.g., "23 of 25 transactions imported, 2 failed")
+3. Add error boundary components in React for graceful failure handling
+4. Implement retry logic for transient failures (network, rate limits)
+5. Log errors with correlation IDs for debugging
+
+**Priority**: HIGH - Improves user trust and debugging
+
+---
+
+### **📋 RECOMMENDATION 3: Add Input Validation and Sanitization**
+
+**Problem**: Limited validation on user inputs, especially for file uploads and API requests.
+
+**Current Vulnerabilities**:
+```go
+// backend/main.go - No file size limit enforcement
+r.ParseMultipartForm(10 << 20) // Limit set but not enforced
+
+// No validation on vendor names, could contain malicious content
+transaction.Vendor = strings.TrimSpace(record[descIdx])
+```
+
+```typescript
+// client-api.ts - No validation on API key format
+if (!data.api_key) {
+    throw new Error('API key required for categorization');
+}
+// But no validation that it's actually a valid API key format
+```
+
+**Recommendation**:
+1. Validate file types, sizes, and content before processing
+2. Sanitize string inputs to prevent injection attacks
+3. Add rate limiting to prevent abuse
+4. Validate numeric inputs (mileage, square footage) for reasonable ranges
+5. Add CSRF protection for state-changing endpoints
+
+**Priority**: MEDIUM - Security improvement
+
+---
+
+### **📋 RECOMMENDATION 4: Implement Proper Database Migrations**
+
+**Problem**: Database schema changes use error-ignoring ALTER TABLE statements.
+
+**Current Anti-pattern**:
+```go
+// backend/main.go lines 274-294
+_, err := db.Exec("ALTER TABLE transactions ADD COLUMN schedule_c_line INTEGER DEFAULT 0")
+if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+    log.Printf("Warning: Could not add schedule_c_line column: %v", err)
+}
+```
+
+**Issues**:
+- No version tracking for schema
+- Error suppression hides real problems
+- No rollback capability
+- Can't deploy reliably to multiple environments
+
+**Recommendation**:
+1. Use a migration library (golang-migrate, goose, or Atlas)
+2. Version each migration with up/down scripts
+3. Store migration state in database
+4. Test migrations on production-like data before deployment
+5. Add migration CLI commands for easier management
+
+**Priority**: HIGH - Critical for production deployments
+
+---
+
+### **📋 RECOMMENDATION 5: Remove Debug Logging from Production Code**
+
+**Problem**: Excessive debug logging clutters output and may expose sensitive information.
+
+**Examples**:
+```go
+// backend/main.go - Extensive debug logging
+log.Printf("🔍 Sorting Debug - sortBy: '%s', sortOrder: '%s'", sortBy, sortOrder)
+log.Printf("🔍 Query: %s", query) // Could expose SQL structure
+log.Printf("🎯 CATEGORY CASE HIT - sortOrder: '%s'", sortOrder)
+```
+
+```typescript
+// client-api.ts
+console.log(`🔍 DEBUG: Loading transactions from LocalForage...`)
+console.log(`📊 Client-side transactions query: ${allTransactions.length} total...`)
+```
+
+**Recommendation**:
+1. Create a proper logging framework with log levels (DEBUG, INFO, WARN, ERROR)
+2. Use environment variable to control log level (e.g., `LOG_LEVEL=info`)
+3. Remove emoji from production logs (harder to grep/parse)
+4. Never log sensitive data (API keys, financial details)
+5. Consider structured logging (JSON) for production monitoring
+
+**Priority**: MEDIUM - Cleaner logs, better security
+
+---
+
+### **📋 RECOMMENDATION 6: Extract Magic Numbers and Hardcoded Values**
+
+**Problem**: Business logic contains hardcoded values scattered throughout the code.
+
+**Examples**:
+```go
+// Multiple places define mileage rate
+mileageRate := 0.67 // backend/main.go line 1906
+mileageRate := 0.67 // standalone-app/main.go line 510
+
+// Page sizes hardcoded
+pageSize := 50 // Multiple locations
+pageSize = 999999 // "Effectively unlimited" - magic number
+
+// Home office calculations
+maxSqft := 300 // Line 1969
+deduction = float64(sqft) * 5.0 // Line 1971
+```
+
+**Recommendation**:
+1. Create a `config` package/file with all business constants
+2. Make IRS rates configurable for year-over-year changes (2024 rate is $0.67, 2025 may differ)
+3. Add comments explaining where values come from (e.g., "IRS Standard Mileage Rate 2024")
+4. Consider loading from config file or environment variables
+5. Add tests that verify calculations match expected IRS rates
+
+**Priority**: MEDIUM - Easier maintenance and yearly updates
+
+---
+
+### **📋 RECOMMENDATION 7: Implement Proper Transaction ID Generation**
+
+**Problem**: Transaction IDs use simple concatenation which could cause collisions.
+
+**Current Implementation**:
+```typescript
+// client-storage.ts line 182
+id: `${source}-${index}-${Date.now()}`,
+```
+
+**Issues**:
+- Multiple files uploaded in same millisecond could collide
+- ID reveals internal structure (source name, row index)
+- Not universally unique across different browsers/sessions
+
+**Recommendation**:
+1. Use UUID v4 for truly unique IDs (already using in Go backend)
+2. Add collision detection on insert
+3. Consider using ULID for sortable, unique IDs
+4. Hash sensitive data out of IDs
+5. Validate uniqueness before database insert
+
+**Example Fix**:
+```typescript
+import { v4 as uuidv4 } from 'uuid';
+id: uuidv4(), // Proper UUID generation
+```
+
+**Priority**: LOW - Unlikely to cause issues in typical usage
+
+---
+
+### **📋 RECOMMENDATION 8: Add Comprehensive Test Coverage**
+
+**Problem**: No test files visible in the codebase.
+
+**Missing Tests**:
+- No unit tests for CSV parsing logic
+- No integration tests for API endpoints
+- No tests for Schedule C calculations (critical for IRS compliance!)
+- No frontend component tests
+
+**Recommendation**:
+1. Add Go tests for critical business logic:
+   - `parseChaseRecord`, `parseAmexRecord` - CSV parsing
+   - `classifyTransactionWithLLM` - LLM response parsing
+   - `getScheduleCData` - Schedule C calculations
+2. Add TypeScript tests for client-side logic:
+   - `clientStorage.parseCSVRow` - CSV parsing
+   - `clientApi.generateScheduleC` - Schedule C calculations
+3. Add E2E tests with real sample CSV files
+4. Create test fixtures from Sample_Data files
+5. Add CI pipeline to run tests on every PR
+
+**Priority**: HIGH - Critical for IRS compliance and reliability
+
+---
+
+### **📋 RECOMMENDATION 9: Secure API Key Handling**
+
+**Problem**: API keys are handled in potentially insecure ways.
+
+**Current Issues**:
+```typescript
+// dashboard.tsx line 112
+const [openRouterApiKey, setOpenRouterApiKey] = useState(process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '')
+// NEXT_PUBLIC_ exposes to client bundle!
+```
+
+```typescript
+// client-storage.ts line 279
+headers: {
+    'Authorization': `Bearer ${apiKey}`,
+    // API key sent directly from browser to OpenRouter
+}
+```
+
+**Risks**:
+- API key visible in browser DevTools Network tab
+- API key could be stored in browser history/localStorage
+- No rate limiting or abuse protection
+- Billing goes to key owner for any abuse
+
+**Recommendation**:
+1. For production: Route API calls through a serverless function (Vercel/Netlify functions)
+2. Store API keys in secure environment variables (not NEXT_PUBLIC_)
+3. Add usage monitoring and alerts for unusual activity
+4. Consider using OpenRouter's usage limits feature
+5. Document security considerations for self-hosted deployments
+
+**Priority**: MEDIUM - Security and cost protection
+
+---
+
+### **📋 RECOMMENDATION 10: Eliminate Code Duplication Between Backend Versions**
+
+**Problem**: `backend/main.go` and `standalone-app/main.go` contain massive duplication.
+
+**Observations**:
+- `backend/main.go`: 2979 lines with full LLM categorization
+- `standalone-app/main.go`: 750 lines - simplified version
+- Both have similar but different implementations of:
+  - `createTables()`
+  - `parseCSVFile()`
+  - `getTransactions()`
+  - `exportScheduleCPDF()`
+
+**Issues**:
+- Bug fixes need to be applied to both files
+- Feature additions require duplicate work
+- Versions can drift apart causing inconsistent behavior
+- Maintenance burden doubles
+
+**Recommendation**:
+1. Extract shared code into a `pkg/` directory:
+   - `pkg/models/` - Transaction, CSVFile structs
+   - `pkg/csv/` - CSV parsing logic
+   - `pkg/schedule/` - Schedule C calculations
+   - `pkg/export/` - PDF/CSV export
+2. Keep backend-specific code (LLM, advanced features) in main backend
+3. Import shared packages into standalone-app
+4. Use build tags if needed for different feature sets
+5. Consider if standalone-app is still needed or can be deprecated
+
+**Priority**: HIGH - Reduces maintenance burden significantly
+
+---
+
+### **📊 PRIORITY SUMMARY**
+
+| Priority | Recommendations |
+|----------|-----------------|
+| **HIGH** | #1 (Types), #2 (Errors), #4 (Migrations), #8 (Tests), #10 (Duplication) |
+| **MEDIUM** | #3 (Validation), #5 (Logging), #6 (Constants), #9 (API Keys) |
+| **LOW** | #7 (Transaction IDs) |
+
+### **🎯 RECOMMENDED IMPLEMENTATION ORDER**
+
+1. **Phase 1 - Foundation** (Week 1-2):
+   - #4 Database Migrations
+   - #10 Code Deduplication
+
+2. **Phase 2 - Quality** (Week 3-4):
+   - #1 Type Consolidation
+   - #8 Test Coverage
+
+3. **Phase 3 - Polish** (Week 5-6):
+   - #2 Error Handling
+   - #5 Logging Cleanup
+   - #6 Configuration Extraction
+
+4. **Phase 4 - Security** (Week 7-8):
+   - #3 Input Validation
+   - #9 API Key Security
+   - #7 Transaction IDs
+
+---
+
+**ANALYSIS COMPLETE**: These 10 recommendations will significantly improve code stability, maintainability, and user experience while reducing technical debt and security risks.
