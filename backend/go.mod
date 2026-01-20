@@ -1,4 +1,4 @@
-module schedccalc-backend
+module schedccalc
 
 go 1.24.2
 
