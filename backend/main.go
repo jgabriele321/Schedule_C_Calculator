@@ -113,9 +113,18 @@ var db *sql.DB
 var openRouterAPIKey string
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load("../.env"); err != nil {
-		log.Printf("Warning: Could not load .env file: %v", err)
+	// Load environment variables - try multiple locations
+	envPaths := []string{".env", "../.env", "/var/www/tax/backend/.env"}
+	envLoaded := false
+	for _, envPath := range envPaths {
+		if err := godotenv.Load(envPath); err == nil {
+			log.Printf("✅ Loaded environment from: %s", envPath)
+			envLoaded = true
+			break
+		}
+	}
+	if !envLoaded {
+		log.Printf("⚠️  Warning: Could not load .env file from any location")
 	}
 
 	openRouterAPIKey = os.Getenv("OPENROUTER_API_KEY")
@@ -123,9 +132,16 @@ func main() {
 		log.Fatal("OPENROUTER_API_KEY environment variable is required")
 	}
 
+	// Get database path from environment or use default
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "./schedccalc.db"
+	}
+	log.Printf("📊 Using database: %s", dbPath)
+
 	// Initialize database
 	var err error
-	db, err = sql.Open("sqlite3", "./schedccalc.db")
+	db, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal("Failed to open database:", err)
 	}

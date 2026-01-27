@@ -1,0 +1,5 @@
+# Add this to /etc/cloudflared/config.yml ingress section
+# IMPORTANT: Add BEFORE the http_status:404 catch-all
+
+  - hostname: tax.dwings.app
+    service: http://localhost:8084
