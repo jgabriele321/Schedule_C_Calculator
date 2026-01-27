@@ -206,15 +206,21 @@ func main() {
 		})
 	})
 
-	fmt.Println("🚀 Server starting on :8080")
-	fmt.Println("📊 SQLite database initialized at ./schedccalc.db")
+	// Get port from environment or use default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	
+	fmt.Printf("🚀 Server starting on :%s\n", port)
+	fmt.Printf("📊 SQLite database initialized at %s\n", dbPath)
 	fmt.Println("📁 Uploads directory created at ./uploads")
-	fmt.Println("✅ Health check available at http://localhost:8080/health")
-	fmt.Println("📤 CSV upload available at http://localhost:8080/upload-csv")
-	fmt.Println("📋 Transactions available at http://localhost:8080/transactions")
-	fmt.Println("🧠 LLM categorization available at http://localhost:8080/categorize")
+	fmt.Printf("✅ Health check available at http://localhost:%s/health\n", port)
+	fmt.Printf("📤 CSV upload available at http://localhost:%s/upload-csv\n", port)
+	fmt.Printf("📋 Transactions available at http://localhost:%s/transactions\n", port)
+	fmt.Printf("🧠 LLM categorization available at http://localhost:%s/categorize\n", port)
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
 func createTables() error {
