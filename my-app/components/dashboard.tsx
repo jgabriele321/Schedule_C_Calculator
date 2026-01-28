@@ -24,7 +24,19 @@ import {
   RefreshCw,
   ChevronDown,
   Settings,
-  Trash
+  Trash,
+  Package,
+  Plane,
+  Utensils,
+  Megaphone,
+  Zap,
+  Code,
+  Briefcase,
+  HelpCircle,
+  Shield,
+  DollarSign,
+  Home as HomeIcon,
+  Scale
 } from "lucide-react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -41,6 +53,27 @@ import { api } from "@/lib/api"
 import { clientStorage } from "@/lib/client-storage"
 import { formatCurrency, formatDate, formatFileSize, getCategoryColor, getTypeColor } from "@/lib/utils"
 import type { Transaction, Summary, UploadedFile } from "@/types"
+import styles from "./dashboard.module.css"
+
+// Helper function to get category icon and color
+const getCategoryIcon = (categoryValue: string) => {
+  const iconMap: Record<string, { icon: any; color: string; emoji: string }> = {
+    office_supplies: { icon: Package, color: 'text-blue-400', emoji: '📦' },
+    travel: { icon: Plane, color: 'text-cyan-400', emoji: '✈️' },
+    meals: { icon: Utensils, color: 'text-orange-400', emoji: '🍔' },
+    advertising: { icon: Megaphone, color: 'text-pink-400', emoji: '📢' },
+    utilities: { icon: Zap, color: 'text-yellow-400', emoji: '⚡' },
+    software: { icon: Code, color: 'text-purple-400', emoji: '💻' },
+    professional_services: { icon: Briefcase, color: 'text-indigo-400', emoji: '💼' },
+    other: { icon: HelpCircle, color: 'text-gray-400', emoji: '❓' },
+    insurance: { icon: Shield, color: 'text-green-400', emoji: '🛡️' },
+    interest: { icon: DollarSign, color: 'text-emerald-400', emoji: '💰' },
+    rent: { icon: HomeIcon, color: 'text-red-400', emoji: '🏠' },
+    taxes_licenses: { icon: Scale, color: 'text-amber-400', emoji: '⚖️' },
+    uncategorized: { icon: AlertCircle, color: 'text-amber-500', emoji: '⚠️' }
+  }
+  return iconMap[categoryValue] || iconMap.uncategorized
+}
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState("upload")
@@ -1067,10 +1100,20 @@ export function Dashboard() {
           )}
 
           {uploadSuccess && (
-            <Alert className="mt-4 border-green-900 bg-green-900/20">
-              <Check className="h-4 w-4 text-green-400" />
-              <AlertDescription className="text-green-300">
-                File uploaded successfully! Redirecting to overview...
+            <Alert className="mt-4 border-green-500 bg-gradient-to-r from-green-900/30 to-green-800/20 shadow-lg">
+              <Check className="h-5 w-5 text-green-400" />
+              <AlertDescription className="text-green-200">
+                <div className="flex flex-col space-y-2">
+                  <span className="font-semibold text-lg">🎉 Success! Files uploaded</span>
+                  <span className="text-sm">Your transactions have been imported. Next step: Review and categorize them.</span>
+                  <Button
+                    onClick={() => setActiveTab('transactions')}
+                    className="mt-2 bg-green-600 hover:bg-green-700 text-white w-fit"
+                    size="sm"
+                  >
+                    Review Transactions →
+                  </Button>
+                </div>
               </AlertDescription>
             </Alert>
           )}
@@ -1147,22 +1190,41 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Upload Button */}
+      {/* Upload Button - Enhanced with gradient and larger size */}
       <div className="text-center">
         <Button
           onClick={handleUpload}
           disabled={selectedFiles.length === 0 || uploading}
           size="lg"
-          className="px-8 bg-blue-600 hover:bg-blue-700 text-white"
+          className="px-12 py-6 text-lg font-semibold shadow-lg hover:shadow-2xl transition-all duration-300"
+          style={{
+            background: selectedFiles.length === 0 || uploading 
+              ? '#4b5563' 
+              : 'linear-gradient(to right, #2563EB, #3B82F6)',
+            transform: selectedFiles.length > 0 && !uploading ? 'scale(1)' : 'scale(1)',
+            cursor: selectedFiles.length === 0 || uploading ? 'not-allowed' : 'pointer'
+          }}
+          onMouseEnter={(e) => {
+            if (selectedFiles.length > 0 && !uploading) {
+              e.currentTarget.style.background = 'linear-gradient(to right, #1d4ed8, #2563EB)'
+              e.currentTarget.style.transform = 'scale(1.05)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (selectedFiles.length > 0 && !uploading) {
+              e.currentTarget.style.background = 'linear-gradient(to right, #2563EB, #3B82F6)'
+              e.currentTarget.style.transform = 'scale(1)'
+            }
+          }}
         >
           {uploading ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-5 w-5 mr-3 animate-spin" />
               Processing {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''}...
             </>
           ) : (
             <>
-              <Upload className="h-4 w-4 mr-2" />
+              <Upload className="h-5 w-5 mr-3" />
               Upload and Process {selectedFiles.length > 0 ? `${selectedFiles.length} ` : ''}CSV{selectedFiles.length !== 1 ? 's' : ''}
             </>
           )}
@@ -1208,14 +1270,39 @@ export function Dashboard() {
   const renderOverview = () => {
     if (!hasData) {
       return (
-        <div className="text-center py-12">
-          <Upload className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-200 mb-2">No data available</h3>
-          <p className="text-gray-400 mb-4">Upload your CSV files to see your financial overview</p>
-          <Button onClick={() => setActiveTab("upload")} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Files
-          </Button>
+        <div className="text-center py-16 px-8">
+          <div className="max-w-md mx-auto">
+            <div className="mb-6 relative">
+              <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full"></div>
+              <Upload className="h-24 w-24 text-blue-400 mx-auto relative" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-100 mb-3">No Data Yet</h3>
+            <p className="text-gray-400 mb-6 text-lg">Upload your bank statements and credit card transactions to get started with your Schedule C</p>
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 mb-6 text-left">
+              <h4 className="text-sm font-semibold text-gray-300 mb-3">Supported Formats:</h4>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <Check className="h-4 w-4 text-green-400" />
+                  <span>Chase Bank CSV exports</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <Check className="h-4 w-4 text-green-400" />
+                  <span>American Express CSV exports</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <Check className="h-4 w-4 text-green-400" />
+                  <span>Most major bank CSV files</span>
+                </div>
+              </div>
+            </div>
+            <Button 
+              onClick={() => setActiveTab("upload")} 
+              className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white text-lg px-8 py-6 shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <Upload className="h-5 w-5 mr-3" />
+              Upload Your Files
+            </Button>
+          </div>
         </div>
       )
     }
@@ -1238,47 +1325,71 @@ export function Dashboard() {
           )}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {/* Business Expenses - Enhanced with gradient and larger text */}
+          <Card 
+            className="border-green-500/30 bg-gradient-to-br from-green-900/20 via-gray-800 to-gray-900 shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
+            style={{
+              borderWidth: '2px'
+            }}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Business Expenses</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-400" />
+              <CardTitle className="text-sm font-medium text-green-300">Business Expenses</CardTitle>
+              <div className="p-2 bg-green-500/20 rounded-lg">
+                <TrendingDown className="h-5 w-5 text-green-400" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-400">
+              <div 
+                className="text-4xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent"
+                style={{
+                  fontSize: '2.5rem',
+                  lineHeight: '1.2'
+                }}
+              >
                 {businessSummary ? formatCurrency(businessSummary.business_expenses) : "--"}
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-green-300/80 mt-2 font-medium">
                 {businessSummary ? `${businessSummary.business_transactions} business transactions` : "Calculating..."}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
+          {/* Personal Expenses */}
+          <Card 
+            className="border-gray-600 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-300">Personal Expenses</CardTitle>
-              <Receipt className="h-4 w-4 text-blue-400" />
+              <div className="p-2 bg-gray-700/50 rounded-lg">
+                <Receipt className="h-5 w-5 text-gray-400" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-400">
+              <div className="text-3xl font-bold text-gray-300">
                 {businessSummary ? formatCurrency(businessSummary.personal_expenses) : "--"}
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-gray-500 mt-2">
                 {businessSummary ? `${businessSummary.personal_transactions} personal transactions` : "Calculating..."}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
+          {/* Total Transactions */}
+          <Card 
+            className="border-blue-500/30 bg-gradient-to-br from-blue-900/20 via-gray-800 to-gray-900 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Total Transactions</CardTitle>
-              <AlertCircle className="h-4 w-4 text-amber-400" />
+              <CardTitle className="text-sm font-medium text-blue-300">Total Transactions</CardTitle>
+              <div className="p-2 bg-blue-500/20 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-blue-400" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-100">
+              <div className="text-3xl font-bold text-blue-300">
                 {businessSummary ? businessSummary.total_transactions.toLocaleString() : "--"}
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-blue-400/80 mt-2">
                 {businessSummary ? 
                   `${businessSummary.business_transactions} business, ${businessSummary.personal_transactions} personal` : 
                   "Calculating..."
@@ -1287,20 +1398,48 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
+          {/* Business Net - Enhanced */}
+          <Card 
+            className={`shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 ${
+              businessSummary && businessSummary.net_profit_loss >= 0
+                ? 'border-green-500/30 bg-gradient-to-br from-green-900/20 via-gray-800 to-gray-900'
+                : 'border-red-500/30 bg-gradient-to-br from-red-900/20 via-gray-800 to-gray-900'
+            }`}
+            style={{
+              borderWidth: '2px'
+            }}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-300">Business Net</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-400" />
+              <CardTitle className={`text-sm font-medium ${
+                businessSummary && businessSummary.net_profit_loss >= 0 ? 'text-green-300' : 'text-red-300'
+              }`}>
+                Business Net
+              </CardTitle>
+              <div className={`p-2 rounded-lg ${
+                businessSummary && businessSummary.net_profit_loss >= 0 ? 'bg-green-500/20' : 'bg-red-500/20'
+              }`}>
+                <TrendingUp className={`h-5 w-5 ${
+                  businessSummary && businessSummary.net_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'
+                }`} />
+              </div>
             </CardHeader>
             <CardContent>
               <div
-                className={`text-2xl font-bold ${
-                  businessSummary && businessSummary.net_profit_loss >= 0 ? "text-green-400" : "text-red-400"
+                className={`text-4xl font-bold ${
+                  businessSummary && businessSummary.net_profit_loss >= 0 
+                    ? "bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent" 
+                    : "bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent"
                 }`}
+                style={{
+                  fontSize: '2.5rem',
+                  lineHeight: '1.2'
+                }}
               >
                 {businessSummary ? formatCurrency(businessSummary.net_profit_loss) : "--"}
               </div>
-              <p className="text-xs text-gray-500">
+              <p className={`text-sm mt-2 font-medium ${
+                businessSummary && businessSummary.net_profit_loss >= 0 ? 'text-green-300/80' : 'text-red-300/80'
+              }`}>
                 Income - Business Expenses
               </p>
             </CardContent>
@@ -1318,12 +1457,26 @@ export function Dashboard() {
         )}
         
         {businessSummary && businessSummary.business_transactions > 0 && (
-          <Alert className="border-green-700 bg-green-900/20">
-            <Check className="h-4 w-4 text-green-400" />
-            <AlertDescription className="text-green-300">
-              Great progress! You've categorized {businessSummary.business_transactions} business transactions. 
-              {businessSummary.business_transactions >= 10 && " You're well on your way to completing your Schedule C!"}
-              {businessSummary.business_transactions >= 50 && " Excellent work - your accountant will be impressed with this organization!"}
+          <Alert className="border-green-500 bg-gradient-to-r from-green-900/30 to-green-800/20 shadow-lg">
+            <Check className="h-5 w-5 text-green-400" />
+            <AlertDescription className="text-green-200">
+              <div className="flex flex-col space-y-2">
+                <span className="font-semibold text-lg">✨ Great Progress!</span>
+                <span className="text-sm">
+                  You've categorized {businessSummary.business_transactions} business transactions. 
+                  {businessSummary.business_transactions >= 10 && " You're well on your way to completing your Schedule C!"}
+                  {businessSummary.business_transactions >= 50 && " Excellent work - your accountant will be impressed with this organization!"}
+                </span>
+                {businessSummary.business_transactions >= 20 && (
+                  <Button
+                    onClick={() => setActiveTab('export')}
+                    className="mt-2 bg-green-600 hover:bg-green-700 text-white w-fit"
+                    size="sm"
+                  >
+                    Export for Accountant →
+                  </Button>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -1940,24 +2093,27 @@ export function Dashboard() {
                   </thead>
                   <tbody>
                     {transactions.map((transaction: any) => {
-                      // Determine color coding for visual appeal
+                      // Enhanced color coding for better visual hierarchy
                       let rowColorClass = ""
                       let borderColorClass = ""
+                      let dotColorClass = ""
                       
-                      if (transaction.is_business) {
+                      // Priority: Uncategorized > Business > Personal
+                      if (!transaction.category || transaction.category === 'uncategorized') {
+                        // Amber warning for transactions needing attention
+                        rowColorClass = "bg-amber-500/10 hover:bg-amber-500/20"
+                        borderColorClass = "border-l-4 border-l-amber-500"
+                        dotColorClass = "bg-amber-400 shadow-amber-400/50"
+                      } else if (transaction.is_business) {
                         // Green for business transactions
-                        rowColorClass = "bg-green-900/10 hover:bg-green-900/20"
+                        rowColorClass = "bg-green-500/10 hover:bg-green-500/15"
                         borderColorClass = "border-l-4 border-l-green-500"
+                        dotColorClass = "bg-green-400 shadow-green-400/50"
                       } else {
                         // Gray for personal transactions  
-                        rowColorClass = "bg-gray-800/20 hover:bg-gray-700/30"
-                        borderColorClass = "border-l-4 border-l-gray-500"
-                      }
-                      
-                      // Yellow for transactions needing attention (uncategorized)
-                      if (!transaction.category || transaction.category === 'uncategorized') {
-                        rowColorClass = "bg-yellow-900/10 hover:bg-yellow-900/20"
-                        borderColorClass = "border-l-4 border-l-yellow-500"
+                        rowColorClass = "bg-gray-800/30 hover:bg-gray-700/40"
+                        borderColorClass = "border-l-4 border-l-gray-600"
+                        dotColorClass = "bg-gray-400 shadow-gray-400/30"
                       }
                       
                       return (
@@ -1969,13 +2125,7 @@ export function Dashboard() {
                             <div className="flex items-center space-x-3">
                               {/* Enhanced color-coded dot indicator */}
                               <div 
-                                className={`w-3 h-3 rounded-full shadow-lg ${
-                                  transaction.is_business 
-                                    ? 'bg-green-400 shadow-green-400/30' 
-                                    : (!transaction.category || transaction.category === 'uncategorized')
-                                      ? 'bg-yellow-400 shadow-yellow-400/30'
-                                      : 'bg-gray-400 shadow-gray-400/30'
-                                }`}
+                                className={`w-3 h-3 rounded-full shadow-lg ${dotColorClass}`}
                               />
                               <span className="font-medium truncate">{transaction.vendor || transaction.description || 'Unknown'}</span>
                             </div>
@@ -2007,7 +2157,14 @@ export function Dashboard() {
                                     autoCategorizingTransactions.has(transaction.id) 
                                       ? "Auto-categorizing..." 
                                       : "Select category..."
-                                  } />
+                                  }>
+                                    {transaction.category && transaction.category !== 'uncategorized' && (
+                                      <span className="flex items-center space-x-1">
+                                        <span>{getCategoryIcon(transaction.category).emoji}</span>
+                                        <span>{irsCategories.find(c => c.value === transaction.category)?.name || transaction.category}</span>
+                                      </span>
+                                    )}
+                                  </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="bg-gray-700 border-gray-600">
                                   {irsCategories.length === 0 && (
@@ -2015,11 +2172,17 @@ export function Dashboard() {
                                       Loading categories...
                                     </SelectItem>
                                   )}
-                                  {irsCategories.map((category) => (
-                                    <SelectItem key={category.id} value={category.value} className="text-white hover:bg-gray-600">
-                                      {category.name} (L{category.schedule_c_line})
-                                    </SelectItem>
-                                  ))}
+                                  {irsCategories.map((category) => {
+                                    const { emoji, color } = getCategoryIcon(category.value)
+                                    return (
+                                      <SelectItem key={category.id} value={category.value} className="text-white hover:bg-gray-600">
+                                        <span className="flex items-center space-x-2">
+                                          <span>{emoji}</span>
+                                          <span>{category.name} (L{category.schedule_c_line})</span>
+                                        </span>
+                                      </SelectItem>
+                                    )
+                                  })}
                                 </SelectContent>
                               </Select>
                               {/* Visual indicator for categorized transactions */}
@@ -3210,48 +3373,37 @@ export function Dashboard() {
     <div className="flex h-screen bg-gray-900">
       {/* Sidebar */}
       <div className="w-72 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
-        {/* Logo - HIDDEN */}
-        <div className="sidebar-logo p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
-              <Calculator className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-gray-100">Schedule C</h2>
-              <p className="text-xs text-gray-400">Assistant</p>
-            </div>
-          </div>
-        </div>
-
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1">
           <button
             onClick={() => setActiveTab("upload")}
-            className={`sidebar-nav-button ${
-              activeTab === "upload" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "upload" ? styles.sidebarNavButtonActive : ""} text-gray-300 relative`}
+            title="Upload your bank statements and credit card CSV files"
           >
             <Upload className="h-4 w-4" />
             <span className="text-sm font-medium">Upload</span>
+            {hasData && activeTab !== "upload" && (
+              <Check className="h-3 w-3 ml-auto text-green-400" title="Data uploaded" />
+            )}
             {activeTab === "upload" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
           <button
             onClick={() => setActiveTab("transactions")}
-            className={`sidebar-nav-button ${
-              activeTab === "transactions" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "transactions" ? styles.sidebarNavButtonActive : ""} text-gray-300 relative`}
+            title="Review and categorize your transactions"
           >
             <Receipt className="h-4 w-4" />
             <span className="text-sm font-medium">Transactions</span>
+            {businessSummary && businessSummary.business_transactions > 0 && activeTab !== "transactions" && (
+              <Check className="h-3 w-3 ml-auto text-green-400" title="Transactions categorized" />
+            )}
             {activeTab === "transactions" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
           <button
             onClick={() => setActiveTab("recurring")}
-            className={`sidebar-nav-button ${
-              activeTab === "recurring" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "recurring" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
           >
             <RefreshCw className="h-4 w-4" />
             <span className="text-sm font-medium">Recurring</span>
@@ -3260,9 +3412,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("mileage")}
-            className={`sidebar-nav-button ${
-              activeTab === "mileage" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "mileage" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
           >
             <CreditCard className="h-4 w-4" />
             <span className="text-sm font-medium">Mileage</span>
@@ -3271,9 +3421,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("homeoffice")}
-            className={`sidebar-nav-button ${
-              activeTab === "homeoffice" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "homeoffice" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
           >
             <Settings className="h-4 w-4" />
             <span className="text-sm font-medium">Home Office</span>
@@ -3282,22 +3430,19 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("overview")}
-            className={`sidebar-nav-button ${
-              activeTab === "overview" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "overview" ? styles.sidebarNavButtonActive : ""} text-gray-300 relative`}
           >
             <BarChart3 className="h-4 w-4" />
             <span className="text-sm font-medium">Overview</span>
+            {businessSummary && activeTab !== "overview" && (
+              <Check className="h-3 w-3 ml-auto text-green-400" />
+            )}
             {activeTab === "overview" && <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
 
-
-
           <button
             onClick={() => setActiveTab("export")}
-            className={`sidebar-nav-button ${
-              activeTab === "export" ? "active" : ""
-            } text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "export" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
           >
             <Download className="h-4 w-4" />
             <span className="text-sm font-medium">Export</span>
@@ -3357,9 +3502,9 @@ export function Dashboard() {
             </div>
           </button>
 
-          <div className="header-content">
-            <p className="schedule-c-brand">Schedule C Assistant</p>
-            <h1 className="header-title">
+          <div className={styles.headerContent}>
+            <p className={styles.scheduleCBrand}>Schedule C Assistant</p>
+            <h1 className={styles.headerTitle}>
               {activeTab === "upload" && "Upload CSV Files"}
               {activeTab === "overview" && "Overview"}
               {activeTab === "transactions" && "Transactions"}
@@ -3369,7 +3514,7 @@ export function Dashboard() {
               {activeTab === "categories" && "Categories"}
               {activeTab === "export" && "Export"}
             </h1>
-            <p className="header-subtitle">
+            <p className={styles.headerSubtitle}>
               {activeTab === "upload" && "Import your bank statements and credit card transactions"}
               {activeTab === "overview" && "Financial summary and key metrics"}
               {activeTab === "transactions" && "Review and manage your transactions"}
@@ -3382,423 +3527,124 @@ export function Dashboard() {
           </div>
           
           {/* Delete All Data Button - Positioned Absolutely */}
-          <Button
-            variant="outline"
-            size="sm"
+          <button
             onClick={() => {
               console.log('🗑️ Trash can clicked - opening delete modal')
               setShowClearDataModal(true)
             }}
-            className="border-gray-600 text-gray-300 hover:bg-red-700 hover:text-white hover:border-red-600 absolute top-4 right-8"
+            className={styles.trashButton}
             title="Delete all data"
           >
             <Trash className="h-4 w-4" />
-          </Button>
+            <span style={{ fontSize: '10px', fontWeight: '500' }}>Delete All</span>
+          </button>
         </header>
 
-        {/* NUCLEAR CSS OVERRIDE - UI Improvements v3.9 - Transparent Trash Button 11:48 */}
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            /* Hero Numbers Section */
-            .force-hero-container {
-              padding: 32px !important;
-              background: linear-gradient(135deg, #1f2937 0%, #111827 50%, #000000 100%) !important;
-              border-bottom: 1px solid #374151 !important;
-              font-family: system-ui, -apple-system, sans-serif !important;
-              display: block !important;
-              width: 100% !important;
-              box-sizing: border-box !important;
-            }
-            .force-hero-title {
-              font-size: 14px !important;
-              font-weight: 600 !important;
-              color: #9ca3af !important;
-              text-transform: uppercase !important;
-              letter-spacing: 0.1em !important;
-              margin-bottom: 16px !important;
-              display: block !important;
-              text-align: center !important;
-            }
-            .force-hero-amount {
-              font-size: 72px !important;
-              font-weight: bold !important;
-              background: linear-gradient(90deg, #34d399 0%, #10b981 50%, #059669 100%) !important;
-              -webkit-background-clip: text !important;
-              -webkit-text-fill-color: transparent !important;
-              background-clip: text !important;
-              margin-bottom: 16px !important;
-              line-height: 1.1 !important;
-              display: block !important;
-              text-align: center !important;
-            }
-            .force-hero-stats {
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              gap: 24px !important;
-              font-size: 14px !important;
-              color: #9ca3af !important;
-            }
-            
-            /* Lighter Background Override */
-            .bg-gray-900 {
-              background-color: #374151 !important; /* Much lighter gray */
-            }
-            .bg-gray-800 {
-              background-color: #4b5563 !important; /* Lighter sidebar */
-            }
-            
-            /* Sidebar Navigation - Twice as Long */
-            .sidebar-nav-button {
-              padding: 16px 12px !important; /* Double the vertical padding (was 8px) */
-              margin-bottom: 4px !important;
-              border-radius: 8px !important;
-              width: 100% !important;
-              display: flex !important;
-              align-items: center !important;
-              gap: 8px !important;
-              transition: all 0.2s ease !important;
-              font-size: 14px !important;
-              font-weight: 500 !important;
-            }
-            .sidebar-nav-button:hover {
-              background-color: rgba(107, 114, 128, 0.5) !important;
-            }
-            .sidebar-nav-button.active {
-              background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%) !important;
-              color: white !important;
-              box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
-            }
-            
-            /* Hide Schedule C Assistant Title and Icon */
-            .sidebar-logo {
-              display: none !important;
-            }
-            
-            /* FORCE SIDEBAR WIDTH OVERRIDE */
-            .w-72 {
-              width: 288px !important; /* Force wider sidebar */
-            }
-            
-            /* FORCE HEADER HEIGHT OVERRIDE */
-            .h-28 {
-              height: 134px !important; /* 20% bigger: 112px * 1.2 = 134px */
-            }
-            
-            /* Center Header Text */
-            .header-content {
-              text-align: center !important;
-              width: 100% !important;
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              justify-content: center !important;
-            }
-            .schedule-c-brand {
-              font-size: 18px !important; /* 20% bigger: 15px * 1.2 = 18px */
-              font-weight: bold !important; /* Very bold */
-              color: #ffffff !important; /* Very white */
-              text-transform: uppercase !important;
-              letter-spacing: 0.1em !important;
-              margin-bottom: -2px !important; /* Even closer - negative margin */
-              text-align: center !important;
-              display: block !important;
-            }
-            .header-title {
-              font-size: 31px !important; /* 20% bigger: 26px * 1.2 = 31px */
-              font-weight: bold !important; /* Very bold */
-              color: #ffffff !important; /* Very white */
-              margin-bottom: -4px !important; /* Even closer - negative margin */
-              text-align: center !important;
-            }
-            .header-subtitle {
-              font-size: 22px !important; /* 20% bigger: 18px * 1.2 = 22px */
-              font-weight: bold !important; /* Very bold */
-              color: #ffffff !important; /* Very white */
-              text-align: center !important;
-              max-width: 720px !important; /* 20% bigger: 600px * 1.2 = 720px */
-              line-height: 1.1 !important; /* Even tighter line height */
-            }
-            
-            /* FORCE TRASH BUTTON POSITIONING AND STYLING - WHITE ICON WITH TEXT */
-            header .absolute.top-4.right-8 {
-              position: absolute !important;
-              top: 20px !important; /* Adjusted for bigger header */
-              right: 32px !important;
-              z-index: 50 !important;
-              background: transparent !important; /* White transparent background */
-              border: none !important; /* Remove border */
-              backdrop-filter: none !important; /* Remove any backdrop effects */
-              color: #ffffff !important; /* Force white icon */
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              gap: 4px !important;
-              padding: 8px 6px !important;
-            }
-            header .absolute.top-4.right-8:hover {
-              background: rgba(239, 68, 68, 0.2) !important; /* Light red hover */
-              border: 1px solid rgba(239, 68, 68, 0.5) !important; /* Red border on hover */
-              color: #ffffff !important; /* Keep white on hover */
-            }
-            header .absolute.top-4.right-8 svg {
-              color: #ffffff !important; /* Force white SVG */
-              fill: #ffffff !important; /* Force white fill */
-              stroke: #ffffff !important; /* Force white stroke */
-            }
-            header .absolute.top-4.right-8::after {
-              content: "Delete All" !important;
-              font-size: 10px !important;
-              color: #ffffff !important;
-              font-weight: 500 !important;
-              text-align: center !important;
-              line-height: 1 !important;
-              white-space: nowrap !important;
-            }
-            
-            /* TRANSACTION ROW HOVER HIGHLIGHTING */
-            tbody tr:hover {
-              background-color: rgba(59, 130, 246, 0.15) !important; /* Light blue highlight */
-              transform: translateY(-1px) !important; /* Subtle lift effect */
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important; /* Enhanced shadow */
-              transition: all 0.2s ease !important;
-            }
-            tbody tr {
-              transition: all 0.2s ease !important;
-            }
-            
-            /* CENTER SCHEDULE C EXPORT HEADER */
-            .space-y-6 > .flex.items-center.justify-between > div:first-child {
-              text-align: center !important;
-              width: 100% !important;
-            }
-            .space-y-6 > .flex.items-center.justify-between > div:first-child h2 {
-              text-align: center !important;
-              margin: 0 auto !important;
-            }
-            .space-y-6 > .flex.items-center.justify-between > div:first-child p {
-              text-align: center !important;
-              margin: 0 auto !important;
-            }
-            .space-y-6 > .flex.items-center.justify-between {
-              position: relative !important;
-            }
-            .space-y-6 > .flex.items-center.justify-between > div:last-child {
-              position: absolute !important;
-              right: 0 !important;
-              top: 50% !important;
-              transform: translateY(-50%) !important;
-            }
-            
-            /* 📱 MOBILE RESPONSIVE OVERRIDES */
-            @media (max-width: 768px) {
-              /* Mobile Hero Numbers - Scale Down */
-              .force-hero-amount {
-                font-size: 48px !important; /* 72px → 48px for mobile */
-                line-height: 1.1 !important;
-              }
-              .force-hero-container {
-                padding: 20px 16px !important; /* Less padding on mobile */
-              }
-              .force-hero-stats {
-                flex-direction: column !important; /* Stack stats vertically */
-                gap: 12px !important;
-                align-items: center !important;
-              }
-              
-              /* Mobile Header - Scale Down */
-              .h-28 {
-                height: 100px !important; /* Smaller header on mobile */
-              }
-              .header-title {
-                font-size: 24px !important; /* 31px → 24px */
-                margin-bottom: -2px !important;
-              }
-              .header-subtitle {
-                font-size: 16px !important; /* 22px → 16px */
-                max-width: 100% !important;
-                line-height: 1.3 !important;
-                padding: 0 8px !important;
-              }
-              .schedule-c-brand {
-                font-size: 14px !important; /* 18px → 14px */
-              }
-              
-              /* Mobile Trash Button - Smaller */
-              header .absolute.top-4.right-8 {
-                top: 12px !important;
-                right: 12px !important;
-                padding: 6px 4px !important;
-              }
-              header .absolute.top-4.right-8::after {
-                font-size: 8px !important;
-              }
-              
-              /* Mobile Sidebar - Hidden on Mobile (uses sheet overlay) */
-              .w-72 {
-                display: none !important; /* Hide desktop sidebar on mobile */
-              }
-              
-              /* Mobile Hamburger Button - Top Left Corner */
-              .mobile-hamburger-button {
-                display: block !important; /* Show hamburger on mobile */
-                position: fixed !important; /* Fixed positioning for better visibility */
-                top: 8px !important; /* Very top of screen */
-                left: 8px !important; /* Very left of screen */
-                z-index: 9999 !important; /* Above everything */
-              }
-              
-              /* Mobile Navigation - Touch-Friendly */
-              .sidebar-nav-button {
-                padding: 20px 16px !important; /* 44px minimum touch target */
-                font-size: 16px !important; /* Larger text for mobile */
-                min-height: 44px !important;
-              }
-              
-              /* Mobile Main Content - Full Width */
-              .flex.h-screen .flex-1 {
-                margin-left: 0 !important; /* Remove sidebar margin */
-              }
-              
-              /* Mobile Tables - Horizontal Scroll */
-              .overflow-x-auto {
-                -webkit-overflow-scrolling: touch !important;
-              }
-              table {
-                min-width: 800px !important; /* Force horizontal scroll */
-              }
-              
-              /* Mobile Transaction Cards - Hidden by default */
-              .mobile-transaction-cards {
-                display: none !important;
-              }
-              
-              /* Mobile Transaction Rows - Larger Touch Targets */
-              tbody tr {
-                height: auto !important;
-                min-height: 60px !important; /* Touch-friendly row height */
-              }
-              tbody td {
-                padding: 12px 8px !important; /* More padding for touch */
-                font-size: 14px !important;
-              }
-              
-              /* Mobile Checkboxes - Larger */
-              input[type="checkbox"] {
-                width: 20px !important;
-                height: 20px !important;
-                min-width: 20px !important;
-                min-height: 20px !important;
-              }
-              
-              /* Mobile Buttons - Touch-Friendly */
-              button {
-                min-height: 44px !important;
-                padding: 12px 16px !important;
-                font-size: 16px !important;
-              }
-              
-              /* Mobile Cards - Full Width */
-              .grid.gap-4.md\\:grid-cols-2.lg\\:grid-cols-4 {
-                grid-template-columns: 1fr !important; /* Single column on mobile */
-                gap: 16px !important;
-              }
-              
-              /* Mobile Upload Area - Touch-Friendly */
-              .border-2.border-dashed {
-                padding: 32px 16px !important;
-                min-height: 120px !important;
-              }
-              
-              /* Mobile Modals - Full Width */
-              .fixed.top-0.left-0.right-0.bottom-0 > div {
-                width: 95% !important;
-                max-width: none !important;
-                margin: 16px !important;
-              }
-            }
-            
-            @media (max-width: 480px) {
-              /* Extra Small Mobile - iPhone SE, etc. */
-              .force-hero-amount {
-                font-size: 36px !important; /* Even smaller for tiny screens */
-              }
-              .header-title {
-                font-size: 20px !important;
-              }
-              .header-subtitle {
-                font-size: 14px !important;
-              }
-              
-              /* Ultra-compact spacing */
-              .force-hero-container {
-                padding: 16px 12px !important;
-              }
-              .px-8 {
-                padding-left: 12px !important;
-                padding-right: 12px !important;
-              }
-              .py-6 {
-                padding-top: 16px !important;
-                padding-bottom: 16px !important;
-              }
-              
-              /* Mobile Card View - Show on very small screens */
-              .mobile-transaction-cards {
-                display: block !important;
-              }
-              .overflow-x-auto {
-                display: none !important; /* Hide table on very small screens */
-              }
-              
-              /* Enhanced Hamburger Button for Small Screens */
-              .mobile-hamburger-button {
-                top: 6px !important; /* Even closer to top edge */
-                left: 6px !important; /* Even closer to left edge */
-                padding: 8px !important; /* Slightly smaller padding */
-              }
-            }
-            
-            /* Touch Device Optimizations - All Sizes */
-            @media (hover: none) and (pointer: coarse) {
-              /* Touch-specific optimizations */
-              button:hover {
-                background-color: transparent !important; /* Disable hover on touch */
-              }
-              .sidebar-nav-button:hover {
-                background-color: rgba(107, 114, 128, 0.3) !important; /* Subtle touch feedback */
-              }
-              
-              /* Larger touch targets for all interactive elements */
-              a, button, input, select, [role="button"] {
-                min-height: 44px !important;
-                min-width: 44px !important;
-              }
-            }
-          `
-        }} />
+        {/* Progress Indicator */}
+        <div className="bg-gray-800 border-b border-gray-700 px-8 py-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              {[
+                { id: 'upload', label: 'Upload', icon: Upload, step: 1 },
+                { id: 'transactions', label: 'Review', icon: Receipt, step: 2 },
+                { id: 'overview', label: 'Summary', icon: BarChart3, step: 3 },
+                { id: 'export', label: 'Export', icon: Download, step: 4 }
+              ].map((step, index, array) => {
+                const isActive = step.id === activeTab
+                const isCompleted = (step.id === 'upload' && hasData) || 
+                                   (step.id === 'transactions' && businessSummary && businessSummary.business_transactions > 0) ||
+                                   (step.id === 'overview' && businessSummary)
+                const StepIcon = step.icon
+                
+                return (
+                  <React.Fragment key={step.id}>
+                    <div 
+                      className="flex flex-col items-center cursor-pointer transition-all duration-300"
+                      onClick={() => setActiveTab(step.id)}
+                      style={{ flex: 1 }}
+                    >
+                      <div 
+                        className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
+                          isActive 
+                            ? 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/50 scale-110' 
+                            : isCompleted
+                              ? 'bg-gradient-to-r from-green-600 to-green-500 shadow-md'
+                              : 'bg-gray-700 shadow-sm'
+                        }`}
+                      >
+                        {isCompleted && !isActive ? (
+                          <Check className="w-6 h-6 text-white" />
+                        ) : (
+                          <StepIcon className={`w-6 h-6 ${isActive ? 'text-white' : isCompleted ? 'text-white' : 'text-gray-400'}`} />
+                        )}
+                      </div>
+                      <span className={`text-xs mt-2 font-medium transition-colors ${
+                        isActive ? 'text-blue-400' : isCompleted ? 'text-green-400' : 'text-gray-500'
+                      }`}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {index < array.length - 1 && (
+                      <div className="flex-1 h-1 mx-2 mt-6 rounded-full overflow-hidden bg-gray-700">
+                        <div 
+                          className={`h-full transition-all duration-500 ${
+                            isCompleted ? 'bg-gradient-to-r from-green-500 to-green-400 w-full' : 'w-0'
+                          }`}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </div>
+            {/* Progress percentage */}
+            {businessSummary && (
+              <div className="text-center mt-2">
+                <span className="text-xs text-gray-400">
+                  {businessSummary.business_transactions > 0 
+                    ? `${Math.round((businessSummary.business_transactions / businessSummary.total_transactions) * 100)}% categorized` 
+                    : 'Upload data to get started'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Privacy Banner - Local Storage Notice */}
+        <div className={styles.privacyBanner}>
+          <div className="max-w-4xl mx-auto flex items-center justify-center gap-3">
+            <Shield className="h-5 w-5 text-blue-400 flex-shrink-0" />
+            <p className="text-sm text-gray-300 text-center">
+              <span className="font-semibold text-blue-300">🔒 Private Storage:</span> All data stays in your browser locally.{' '}
+              <span className="text-gray-400">Not sent to our servers.</span>{' '}
+              <span className="text-amber-300">⚠️ Clearing browser data will delete everything.</span>{' '}
+              <span className="text-xs text-gray-500">(AI features use OpenRouter)</span>
+            </p>
+          </div>
+        </div>
+
         
-        {/* Hero Numbers Section - FORCED STYLING */}
+        {/* Hero Numbers Section */}
         {hasData && businessSummary && (
-          <div className="force-hero-container">
-                         <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
-               <div style={{ textAlign: 'center' }}>
-                 <p className="force-hero-title">
-                   Total Business Deductions
-                 </p>
-                 <div className="force-hero-amount">
-                   {formatCurrency(businessSummary.business_expenses)}
-                 </div>
-                 <div className="force-hero-stats">
+          <div className={styles.heroContainer}>
+            <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+              <div style={{ textAlign: 'center' }}>
+                <p className={styles.heroTitle}>
+                  Total Business Deductions
+                </p>
+                <div className={styles.heroAmount}>
+                  {formatCurrency(businessSummary.business_expenses)}
+                </div>
+                <div className={styles.heroStats}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ 
                       width: '8px', 
                       height: '8px', 
-                      backgroundColor: '#34d399 !important', 
+                      backgroundColor: '#34d399', 
                       borderRadius: '50%',
                       boxShadow: '0 0 10px rgba(52, 211, 153, 0.5)'
                     }}></div>
-                    <span style={{ color: '#d1d5db !important', fontWeight: '500' }}>
+                    <span style={{ color: '#d1d5db', fontWeight: '500' }}>
                       {businessSummary.business_transactions} business transactions
                     </span>
                   </div>
@@ -3806,16 +3652,16 @@ export function Dashboard() {
                     <div style={{ 
                       width: '8px', 
                       height: '8px', 
-                      backgroundColor: '#9ca3af !important', 
+                      backgroundColor: '#9ca3af', 
                       borderRadius: '50%' 
                     }}></div>
-                    <span style={{ color: '#d1d5db !important', fontWeight: '500' }}>
+                    <span style={{ color: '#d1d5db', fontWeight: '500' }}>
                       {businessSummary.personal_transactions} personal transactions
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Calculator style={{ width: '16px', height: '16px', color: '#60a5fa !important' }} />
-                    <span style={{ color: '#60a5fa !important', fontWeight: '600' }}>Ready for Schedule C</span>
+                    <Calculator style={{ width: '16px', height: '16px', color: '#60a5fa' }} />
+                    <span style={{ color: '#60a5fa', fontWeight: '600' }}>Ready for Schedule C</span>
                   </div>
                 </div>
               </div>
