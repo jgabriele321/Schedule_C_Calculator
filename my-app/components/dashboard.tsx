@@ -1024,15 +1024,15 @@ export function Dashboard() {
   const renderUpload = () => (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Upload Card */}
-      <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-sm">
+      <Card className={styles.card}>
         <CardContent className="p-8">
           <div
             className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
               dragActive
-                ? "border-blue-500 bg-blue-900/20"
+                ? "border-blue-500 bg-blue-50"
                 : selectedFiles.length > 0
-                  ? "border-green-500 bg-green-900/20"
-                  : "border-gray-600 hover:border-blue-500 hover:bg-blue-900/10"
+                  ? "border-green-500 bg-green-50"
+                  : "border-slate-300 hover:border-blue-500 hover:bg-blue-50"
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -1050,16 +1050,16 @@ export function Dashboard() {
             <div className="space-y-4">
               {selectedFiles.length > 0 ? (
                 <>
-                  <Check className="h-12 w-12 text-green-400 mx-auto" />
+                  <Check className="h-12 w-12 text-green-500 mx-auto" />
                   <div>
-                    <p className="text-lg font-medium text-green-300">
+                    <p className="text-lg font-medium text-green-700">
                       {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} selected
                     </p>
                     <div className="mt-2 space-y-1">
                       {selectedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-gray-700/50 rounded text-sm">
-                          <span className="text-green-300">{file.name}</span>
-                          <span className="text-green-400">{formatFileSize(file.size)}</span>
+                        <div key={index} className="flex items-center justify-between p-2 bg-green-100 rounded text-sm">
+                          <span className="text-green-800">{file.name}</span>
+                          <span className="text-green-600">{formatFileSize(file.size)}</span>
                         </div>
                       ))}
                     </div>
@@ -1072,7 +1072,7 @@ export function Dashboard() {
                       setSelectedFiles([])
                       setSelectedFile(null)
                     }}
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-100"
                   >
                     <X className="h-4 w-4 mr-2" />
                     Clear All
@@ -1080,12 +1080,12 @@ export function Dashboard() {
                 </>
               ) : (
                 <>
-                  <Cloud className="h-12 w-12 text-gray-400 mx-auto" />
+                  <Cloud className="h-12 w-12 text-slate-400 mx-auto" />
                   <div>
-                    <p className="text-lg font-medium text-gray-200">
+                    <p className="text-lg font-medium text-slate-700">
                       Drag and drop your CSV files here, or click to browse
                     </p>
-                    <p className="text-sm text-gray-400">Multiple CSV files supported, max 10MB each</p>
+                    <p className="text-sm text-slate-500">Multiple CSV files supported, max 10MB each</p>
                   </div>
                 </>
               )}
@@ -1093,19 +1093,19 @@ export function Dashboard() {
           </div>
 
           {uploadError && (
-            <Alert className="mt-4 border-red-900 bg-red-900/20">
-              <AlertCircle className="h-4 w-4 text-red-400" />
-              <AlertDescription className="text-red-300">{uploadError}</AlertDescription>
+            <Alert className="mt-4 border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertDescription className="text-red-700">{uploadError}</AlertDescription>
             </Alert>
           )}
 
           {uploadSuccess && (
-            <Alert className="mt-4 border-green-500 bg-gradient-to-r from-green-900/30 to-green-800/20 shadow-lg">
-              <Check className="h-5 w-5 text-green-400" />
-              <AlertDescription className="text-green-200">
+            <Alert className="mt-4 border-green-200 bg-green-50 shadow-lg">
+              <Check className="h-5 w-5 text-green-500" />
+              <AlertDescription className="text-green-800">
                 <div className="flex flex-col space-y-2">
                   <span className="font-semibold text-lg">🎉 Success! Files uploaded</span>
-                  <span className="text-sm">Your transactions have been imported. Next step: Review and categorize them.</span>
+                  <span className="text-sm text-green-700">Your transactions have been imported. Next step: Review and categorize them.</span>
                   <Button
                     onClick={() => setActiveTab('transactions')}
                     className="mt-2 bg-green-600 hover:bg-green-700 text-white w-fit"
@@ -1121,10 +1121,10 @@ export function Dashboard() {
       </Card>
 
       {/* Source Type Selection */}
-      <Card className="border-gray-700 bg-gray-800/50 backdrop-blur-sm">
+      <Card className={styles.card}>
         <CardHeader>
-          <CardTitle className="text-gray-200">Transaction Type</CardTitle>
-          <CardDescription className="text-gray-400">
+          <CardTitle className="text-slate-800">Transaction Type</CardTitle>
+          <CardDescription className="text-slate-500">
             Select what type of transactions this CSV contains
           </CardDescription>
         </CardHeader>
@@ -1137,9 +1137,9 @@ export function Dashboard() {
                 value="expenses"
                 checked={sourceType === "expenses"}
                 onChange={(e) => setSourceType(e.target.value)}
-                className="w-4 h-4 text-blue-500 bg-gray-700 border-gray-600"
+                className="w-4 h-4 text-blue-500"
               />
-              <span className="text-sm font-medium text-gray-300">Expenses</span>
+              <span className="text-sm font-medium text-slate-700">Expenses</span>
             </label>
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -1148,9 +1148,9 @@ export function Dashboard() {
                 value="income"
                 checked={sourceType === "income"}
                 onChange={(e) => setSourceType(e.target.value)}
-                className="w-4 h-4 text-blue-500 bg-gray-700 border-gray-600"
+                className="w-4 h-4 text-blue-500"
               />
-              <span className="text-sm font-medium text-gray-300">Income</span>
+              <span className="text-sm font-medium text-slate-700">Income</span>
             </label>
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -1159,32 +1159,32 @@ export function Dashboard() {
                 value="both"
                 checked={sourceType === "both"}
                 onChange={(e) => setSourceType(e.target.value)}
-                className="w-4 h-4 text-blue-500 bg-gray-700 border-gray-600"
+                className="w-4 h-4 text-blue-500"
               />
-              <span className="text-sm font-medium text-gray-300">Both</span>
+              <span className="text-sm font-medium text-slate-700">Both</span>
             </label>
           </div>
         </CardContent>
       </Card>
 
       {/* Supported Formats */}
-      <Card className="border-gray-700 bg-gray-800/50 backdrop-blur-sm">
+      <Card className={styles.card}>
         <CardHeader>
-          <CardTitle className="text-gray-200">Supported Formats</CardTitle>
+          <CardTitle className="text-slate-800">Supported Formats</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <Check className="h-4 w-4 text-green-400" />
-              <span className="text-sm text-gray-300">Chase Bank CSV exports</span>
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm text-slate-700">Chase Bank CSV exports</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Check className="h-4 w-4 text-green-400" />
-              <span className="text-sm text-gray-300">American Express CSV exports</span>
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm text-slate-700">American Express CSV exports</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Check className="h-4 w-4 text-green-400" />
-              <span className="text-sm text-gray-300">Generic bank CSV files</span>
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm text-slate-700">Generic bank CSV files</span>
             </div>
           </div>
         </CardContent>
@@ -1196,10 +1196,10 @@ export function Dashboard() {
           onClick={handleUpload}
           disabled={selectedFiles.length === 0 || uploading}
           size="lg"
-          className="px-12 py-6 text-lg font-semibold shadow-lg hover:shadow-2xl transition-all duration-300"
+          className="px-12 py-6 text-lg font-semibold shadow-lg hover:shadow-2xl transition-all duration-300 text-white"
           style={{
             background: selectedFiles.length === 0 || uploading 
-              ? '#4b5563' 
+              ? '#94a3b8' 
               : 'linear-gradient(to right, #2563EB, #3B82F6)',
             transform: selectedFiles.length > 0 && !uploading ? 'scale(1)' : 'scale(1)',
             cursor: selectedFiles.length === 0 || uploading ? 'not-allowed' : 'pointer'
@@ -1233,28 +1233,28 @@ export function Dashboard() {
 
       {/* Recent Uploads */}
       {recentUploads.length > 0 && (
-        <Card className="border-gray-700 bg-gray-800/50 backdrop-blur-sm">
+        <Card className={styles.card}>
           <CardHeader>
-            <CardTitle className="text-gray-200">Recent Uploads</CardTitle>
+            <CardTitle className="text-slate-800">Recent Uploads</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {recentUploads.map((upload) => (
-                <div key={upload.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+                <div key={upload.id} className="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
                   <div className="flex items-center space-x-3">
-                    <FileText className="h-5 w-5 text-gray-400" />
+                    <FileText className="h-5 w-5 text-slate-500" />
                     <div>
-                      <p className="font-medium text-sm text-gray-200">{upload.name}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="font-medium text-sm text-slate-800">{upload.name}</p>
+                      <p className="text-xs text-slate-500">
                         {formatDate(upload.uploadDate)} • {formatFileSize(upload.size)}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" className="border-gray-600 text-gray-300 hover:bg-gray-700">
+                    <Button variant="outline" size="sm" className="border-slate-300 text-slate-700 hover:bg-slate-100">
                       Re-process
                     </Button>
-                    <Button variant="outline" size="sm" className="border-gray-600 text-gray-300 hover:bg-gray-700">
+                    <Button variant="outline" size="sm" className="border-slate-300 text-slate-700 hover:bg-slate-100">
                       Delete
                     </Button>
                   </div>
@@ -3372,12 +3372,12 @@ export function Dashboard() {
   return (
     <div className="flex h-screen bg-gray-900">
       {/* Sidebar */}
-      <div className="w-72 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
+      <div className={`w-72 flex flex-col flex-shrink-0 ${styles.sidebar}`}>
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 pt-6">
           <button
             onClick={() => setActiveTab("upload")}
-            className={`${styles.sidebarNavButton} ${activeTab === "upload" ? styles.sidebarNavButtonActive : ""} text-gray-300 relative`}
+            className={`${styles.sidebarNavButton} ${activeTab === "upload" ? styles.sidebarNavButtonActive : ""} relative`}
             title="Upload your bank statements and credit card CSV files"
           >
             <Upload className="h-4 w-4" />
@@ -3390,7 +3390,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("transactions")}
-            className={`${styles.sidebarNavButton} ${activeTab === "transactions" ? styles.sidebarNavButtonActive : ""} text-gray-300 relative`}
+            className={`${styles.sidebarNavButton} ${activeTab === "transactions" ? styles.sidebarNavButtonActive : ""} relative`}
             title="Review and categorize your transactions"
           >
             <Receipt className="h-4 w-4" />
@@ -3403,7 +3403,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("recurring")}
-            className={`${styles.sidebarNavButton} ${activeTab === "recurring" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "recurring" ? styles.sidebarNavButtonActive : ""}`}
           >
             <RefreshCw className="h-4 w-4" />
             <span className="text-sm font-medium">Recurring</span>
@@ -3412,7 +3412,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("mileage")}
-            className={`${styles.sidebarNavButton} ${activeTab === "mileage" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "mileage" ? styles.sidebarNavButtonActive : ""}`}
           >
             <CreditCard className="h-4 w-4" />
             <span className="text-sm font-medium">Mileage</span>
@@ -3421,7 +3421,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("homeoffice")}
-            className={`${styles.sidebarNavButton} ${activeTab === "homeoffice" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "homeoffice" ? styles.sidebarNavButtonActive : ""}`}
           >
             <Settings className="h-4 w-4" />
             <span className="text-sm font-medium">Home Office</span>
@@ -3430,7 +3430,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("overview")}
-            className={`${styles.sidebarNavButton} ${activeTab === "overview" ? styles.sidebarNavButtonActive : ""} text-gray-300 relative`}
+            className={`${styles.sidebarNavButton} ${activeTab === "overview" ? styles.sidebarNavButtonActive : ""} relative`}
           >
             <BarChart3 className="h-4 w-4" />
             <span className="text-sm font-medium">Overview</span>
@@ -3442,7 +3442,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setActiveTab("export")}
-            className={`${styles.sidebarNavButton} ${activeTab === "export" ? styles.sidebarNavButtonActive : ""} text-gray-300`}
+            className={`${styles.sidebarNavButton} ${activeTab === "export" ? styles.sidebarNavButtonActive : ""}`}
           >
             <Download className="h-4 w-4" />
             <span className="text-sm font-medium">Export</span>
@@ -3454,7 +3454,7 @@ export function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-28 border-b border-gray-700 bg-gray-800 px-8 flex items-center justify-center sticky top-0 z-10 relative">
+        <header className={`h-28 px-8 flex items-center justify-center sticky top-0 z-10 relative ${styles.header}`}>
           {/* Mobile Hamburger Menu - Top Left Corner */}
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -3541,7 +3541,7 @@ export function Dashboard() {
         </header>
 
         {/* Progress Indicator */}
-        <div className="bg-gray-800 border-b border-gray-700 px-8 py-4">
+        <div className="bg-white border-b border-slate-200 px-8 py-4 shadow-sm">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center justify-between mb-2">
               {[
@@ -3566,26 +3566,26 @@ export function Dashboard() {
                       <div 
                         className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
                           isActive 
-                            ? 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/50 scale-110' 
+                            ? 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 scale-110' 
                             : isCompleted
                               ? 'bg-gradient-to-r from-green-600 to-green-500 shadow-md'
-                              : 'bg-gray-700 shadow-sm'
+                              : 'bg-slate-200 shadow-sm'
                         }`}
                       >
                         {isCompleted && !isActive ? (
                           <Check className="w-6 h-6 text-white" />
                         ) : (
-                          <StepIcon className={`w-6 h-6 ${isActive ? 'text-white' : isCompleted ? 'text-white' : 'text-gray-400'}`} />
+                          <StepIcon className={`w-6 h-6 ${isActive ? 'text-white' : isCompleted ? 'text-white' : 'text-slate-500'}`} />
                         )}
                       </div>
                       <span className={`text-xs mt-2 font-medium transition-colors ${
-                        isActive ? 'text-blue-400' : isCompleted ? 'text-green-400' : 'text-gray-500'
+                        isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-slate-500'
                       }`}>
                         {step.label}
                       </span>
                     </div>
                     {index < array.length - 1 && (
-                      <div className="flex-1 h-1 mx-2 mt-6 rounded-full overflow-hidden bg-gray-700">
+                      <div className="flex-1 h-1 mx-2 mt-6 rounded-full overflow-hidden bg-slate-200">
                         <div 
                           className={`h-full transition-all duration-500 ${
                             isCompleted ? 'bg-gradient-to-r from-green-500 to-green-400 w-full' : 'w-0'
@@ -3600,7 +3600,7 @@ export function Dashboard() {
             {/* Progress percentage */}
             {businessSummary && (
               <div className="text-center mt-2">
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-slate-500">
                   {businessSummary.business_transactions > 0 
                     ? `${Math.round((businessSummary.business_transactions / businessSummary.total_transactions) * 100)}% categorized` 
                     : 'Upload data to get started'}
@@ -3613,12 +3613,12 @@ export function Dashboard() {
         {/* Privacy Banner - Local Storage Notice */}
         <div className={styles.privacyBanner}>
           <div className="max-w-4xl mx-auto flex items-center justify-center gap-3">
-            <Shield className="h-5 w-5 text-blue-400 flex-shrink-0" />
-            <p className="text-sm text-gray-300 text-center">
-              <span className="font-semibold text-blue-300">🔒 Private Storage:</span> All data stays in your browser locally.{' '}
-              <span className="text-gray-400">Not sent to our servers.</span>{' '}
-              <span className="text-amber-300">⚠️ Clearing browser data will delete everything.</span>{' '}
-              <span className="text-xs text-gray-500">(AI features use OpenRouter)</span>
+            <Shield className="h-5 w-5 text-blue-600 flex-shrink-0" />
+            <p className="text-sm text-slate-700 text-center">
+              <span className="font-semibold text-blue-700">🔒 Private Storage:</span> All data stays in your browser locally.{' '}
+              <span className="text-slate-600">Not sent to our servers.</span>{' '}
+              <span className="text-amber-600 font-medium">⚠️ Clearing browser data will delete everything.</span>{' '}
+              <span className="text-xs text-slate-500">(AI features use OpenRouter)</span>
             </p>
           </div>
         </div>
@@ -3670,7 +3670,7 @@ export function Dashboard() {
         )}
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto px-8 py-6 bg-gradient-to-b from-gray-900 to-gray-950">
+        <main className={`flex-1 overflow-auto px-8 py-6 ${styles.mainContent}`}>
           <div className="max-w-7xl mx-auto">
             {renderContent()}
           </div>

@@ -1,5 +1,11 @@
 /* Dashboard Module CSS - Clean replacement for inline CSS overrides */
 
+/* Sidebar Container */
+.sidebar {
+  background-color: #1e293b; /* Slate-800 - darker but distinct */
+  border-right: 1px solid #334155;
+}
+
 /* Sidebar Navigation Buttons */
 .sidebarNavButton {
   padding: 16px 12px;
@@ -15,16 +21,30 @@
   background: transparent;
   border: none;
   cursor: pointer;
+  color: #e2e8f0; /* Light slate text */
+}
+
+.sidebarNavButton svg {
+  color: #94a3b8; /* Slate-400 icons */
 }
 
 .sidebarNavButton:hover {
-  background-color: rgba(107, 114, 128, 0.5);
+  background-color: rgba(148, 163, 184, 0.2); /* Lighter hover */
+  color: #ffffff;
+}
+
+.sidebarNavButton:hover svg {
+  color: #ffffff;
 }
 
 .sidebarNavButtonActive {
   background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.sidebarNavButtonActive svg {
+  color: white;
 }
 
 /* Hero Section */
@@ -71,6 +91,12 @@
   color: #9ca3af;
 }
 
+/* Header Bar - Dark for brand contrast */
+.header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-bottom: 1px solid #334155;
+}
+
 /* Header Styles */
 .headerContent {
   text-align: center;
@@ -109,10 +135,10 @@
   line-height: 1.1;
 }
 
-/* Privacy Banner */
+/* Privacy Banner - Works on light background */
 .privacyBanner {
-  background: linear-gradient(to right, rgba(30, 58, 138, 0.3), rgba(88, 28, 135, 0.3));
-  border-bottom: 1px solid rgba(59, 130, 246, 0.5);
+  background: linear-gradient(to right, #dbeafe, #e9d5ff);
+  border-bottom: 1px solid #93c5fd;
   padding: 12px 32px;
 }
 
@@ -144,15 +170,54 @@
   stroke: #ffffff;
 }
 
-/* Transaction Row Hover */
+/* Main Content Area - Light Theme */
+.mainContent {
+  background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  color: #1e293b;
+}
+
+/* Card styling for light theme */
+.card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.cardTitle {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.cardDescription {
+  color: #64748b;
+}
+
+/* Upload dropzone for light theme */
+.uploadDropzone {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+.uploadDropzone:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.uploadDropzoneActive {
+  border-color: #3b82f6;
+  background-color: #dbeafe;
+}
+
+/* Transaction Row Hover - Updated for light theme */
 .transactionRow {
   transition: all 0.2s ease;
 }
 
 .transactionRow:hover {
-  background-color: rgba(59, 130, 246, 0.15);
+  background-color: rgba(59, 130, 246, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* Mobile Responsive */
