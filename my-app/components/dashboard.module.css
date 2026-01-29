@@ -135,10 +135,10 @@
   line-height: 1.1;
 }
 
-/* Privacy Banner - Works on light background */
+/* Privacy Banner - Darker for visibility */
 .privacyBanner {
-  background: linear-gradient(to right, #dbeafe, #e9d5ff);
-  border-bottom: 1px solid #93c5fd;
+  background: linear-gradient(to right, #1e40af, #6b21a8);
+  border-bottom: 1px solid #3b82f6;
   padding: 12px 32px;
 }
 

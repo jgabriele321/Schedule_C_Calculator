@@ -1029,10 +1029,10 @@ export function Dashboard() {
           <div
             className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
               dragActive
-                ? "border-blue-500 bg-blue-50"
+                ? "border-blue-500 bg-blue-100"
                 : selectedFiles.length > 0
-                  ? "border-green-500 bg-green-50"
-                  : "border-slate-300 hover:border-blue-500 hover:bg-blue-50"
+                  ? "border-green-500 bg-green-100"
+                  : "border-slate-400 bg-slate-100 hover:border-blue-500 hover:bg-blue-100"
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -2427,8 +2427,8 @@ export function Dashboard() {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <RefreshCw className="h-8 w-8 text-blue-400 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-400">Loading Schedule C data...</p>
+            <RefreshCw className="h-8 w-8 text-blue-500 mx-auto mb-4 animate-spin" />
+            <p className="text-slate-600">Loading Schedule C data...</p>
           </div>
         </div>
       )
@@ -2438,9 +2438,9 @@ export function Dashboard() {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-4" />
-            <p className="text-red-400 font-medium">No Schedule C data available</p>
-            <p className="text-gray-400 text-sm">Please upload and categorize transactions first</p>
+            <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+            <p className="text-red-600 font-medium">No Schedule C data available</p>
+            <p className="text-slate-500 text-sm">Please upload and categorize transactions first</p>
           </div>
         </div>
       )
@@ -2453,8 +2453,8 @@ export function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white">Schedule C Export</h2>
-            <p className="text-gray-400">IRS Form 1040 - Schedule C (Form 1040)</p>
+            <h2 className="text-2xl font-bold text-slate-800">Schedule C Export</h2>
+            <p className="text-slate-500">IRS Form 1040 - Schedule C (Form 1040)</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -2524,64 +2524,64 @@ export function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Summary Cards */}
-          <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+          <Card className={styles.card}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Gross Receipts</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-600">Gross Receipts</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-400">
+              <div className="text-2xl font-bold text-green-600">
                 {formatCurrency(scheduleC.line1_gross_receipts)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">Line 1</p>
+              <p className="text-xs text-slate-500 mt-1">Line 1</p>
             </CardContent>
           </Card>
 
-          <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+          <Card className={styles.card}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Total Expenses</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-600">Total Expenses</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-400">
+              <div className="text-2xl font-bold text-red-600">
                 {formatCurrency(scheduleC.line28_total_expenses)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">Line 28</p>
+              <p className="text-xs text-slate-500 mt-1">Line 28</p>
             </CardContent>
           </Card>
 
-          <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+          <Card className={styles.card}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Net Profit/Loss</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-600">Net Profit/Loss</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${scheduleC.line31_net_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div className={`text-2xl font-bold ${scheduleC.line31_net_profit_loss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(scheduleC.line31_net_profit_loss)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">Line 31</p>
+              <p className="text-xs text-slate-500 mt-1">Line 31</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Official Schedule C Form Layout */}
-        <Card style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}>
+        <Card className={styles.card}>
           <CardHeader>
-            <CardTitle className="text-xl text-white">Schedule C (Form 1040) - Profit or Loss From Business</CardTitle>
-            <CardDescription className="text-gray-400">Tax Year {scheduleData.tax_year}</CardDescription>
+            <CardTitle className="text-xl text-slate-800">Schedule C (Form 1040) - Profit or Loss From Business</CardTitle>
+            <CardDescription className="text-slate-500">Tax Year {scheduleData.tax_year}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               {/* Part I - Income */}
               <div>
-                <h3 className="text-lg font-semibold text-white mb-4 border-b border-gray-700 pb-2">Part I - Income</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b border-slate-200 pb-2">Part I - Income</h3>
                 <div className="grid grid-cols-12 gap-4 items-center py-2">
-                  <div className="col-span-1 text-sm font-medium text-gray-400">1</div>
-                  <div className="col-span-8 text-sm text-gray-300">Gross receipts or sales</div>
-                  <div className="col-span-3 text-right text-white font-mono">{formatCurrency(scheduleC.line1_gross_receipts)}</div>
+                  <div className="col-span-1 text-sm font-medium text-slate-500">1</div>
+                  <div className="col-span-8 text-sm text-slate-700">Gross receipts or sales</div>
+                  <div className="col-span-3 text-right text-slate-800 font-mono">{formatCurrency(scheduleC.line1_gross_receipts)}</div>
                 </div>
               </div>
 
               {/* Part II - Expenses */}
               <div>
-                <h3 className="text-lg font-semibold text-white mb-4 border-b border-gray-700 pb-2">Part II - Expenses</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b border-slate-200 pb-2">Part II - Expenses</h3>
                 <div className="space-y-2">
                   {[
                     { line: 8, label: "Advertising", value: scheduleC.line8_advertising },
@@ -2605,10 +2605,10 @@ export function Dashboard() {
                     { line: 26, label: "Wages", value: scheduleC.line26_wages },
                     { line: 27, label: "Other expenses", value: scheduleC.line27_other_expenses }
                   ].map((item) => (
-                    <div key={item.line} className={`grid grid-cols-12 gap-4 items-center py-2 ${item.value > 0 ? 'bg-gray-800/30' : ''} rounded`}>
-                      <div className="col-span-1 text-sm font-medium text-gray-400">{item.line}</div>
-                      <div className="col-span-8 text-sm text-gray-300">{item.label}</div>
-                      <div className="col-span-3 text-right text-white font-mono">
+                    <div key={item.line} className={`grid grid-cols-12 gap-4 items-center py-2 ${item.value > 0 ? 'bg-slate-100' : ''} rounded`}>
+                      <div className="col-span-1 text-sm font-medium text-slate-500">{item.line}</div>
+                      <div className="col-span-8 text-sm text-slate-700">{item.label}</div>
+                      <div className="col-span-3 text-right text-slate-800 font-mono">
                         {item.value > 0 ? formatCurrency(item.value) : '-'}
                       </div>
                     </div>
@@ -2617,52 +2617,52 @@ export function Dashboard() {
               </div>
 
               {/* Totals */}
-              <div className="border-t border-gray-700 pt-4">
-                <div className="grid grid-cols-12 gap-4 items-center py-2 bg-gray-800/50 rounded">
-                  <div className="col-span-1 text-sm font-bold text-gray-300">28</div>
-                  <div className="col-span-8 text-sm font-bold text-gray-300">Total expenses</div>
-                  <div className="col-span-3 text-right text-white font-mono font-bold">{formatCurrency(scheduleC.line28_total_expenses)}</div>
+              <div className="border-t border-slate-200 pt-4">
+                <div className="grid grid-cols-12 gap-4 items-center py-2 bg-slate-100 rounded">
+                  <div className="col-span-1 text-sm font-bold text-slate-700">28</div>
+                  <div className="col-span-8 text-sm font-bold text-slate-700">Total expenses</div>
+                  <div className="col-span-3 text-right text-slate-800 font-mono font-bold">{formatCurrency(scheduleC.line28_total_expenses)}</div>
                 </div>
                 
                 {scheduleC.line30_home_office > 0 && (
                   <div className="grid grid-cols-12 gap-4 items-center py-2">
-                    <div className="col-span-1 text-sm font-medium text-gray-400">30</div>
-                    <div className="col-span-8 text-sm text-gray-300">Home office deduction</div>
-                    <div className="col-span-3 text-right text-white font-mono">{formatCurrency(scheduleC.line30_home_office)}</div>
+                    <div className="col-span-1 text-sm font-medium text-slate-500">30</div>
+                    <div className="col-span-8 text-sm text-slate-700">Home office deduction</div>
+                    <div className="col-span-3 text-right text-slate-800 font-mono">{formatCurrency(scheduleC.line30_home_office)}</div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-12 gap-4 items-center py-3 bg-blue-900/30 rounded mt-2">
-                  <div className="col-span-1 text-sm font-bold text-blue-300">31</div>
-                  <div className="col-span-8 text-sm font-bold text-blue-300">Net profit or (loss)</div>
-                  <div className={`col-span-3 text-right font-mono font-bold text-lg ${scheduleC.line31_net_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <div className="grid grid-cols-12 gap-4 items-center py-3 bg-blue-100 rounded mt-2">
+                  <div className="col-span-1 text-sm font-bold text-blue-700">31</div>
+                  <div className="col-span-8 text-sm font-bold text-blue-700">Net profit or (loss)</div>
+                  <div className={`col-span-3 text-right font-mono font-bold text-lg ${scheduleC.line31_net_profit_loss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(scheduleC.line31_net_profit_loss)}
                   </div>
                 </div>
               </div>
 
               {/* Additional Info */}
-              <div className="bg-gray-800/20 rounded-lg p-4 mt-6">
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">Calculation Summary</h4>
+              <div className="bg-slate-100 rounded-lg p-4 mt-6">
+                <h4 className="text-sm font-semibold text-slate-700 mb-2">Calculation Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-400">Income Transactions:</span>
-                    <div className="text-white font-medium">{summary.income_transactions}</div>
+                    <span className="text-slate-500">Income Transactions:</span>
+                    <div className="text-slate-800 font-medium">{summary.income_transactions}</div>
                   </div>
                   <div>
-                    <span className="text-gray-400">Expense Transactions:</span>
-                    <div className="text-white font-medium">{summary.expense_transactions}</div>
+                    <span className="text-slate-500">Expense Transactions:</span>
+                    <div className="text-slate-800 font-medium">{summary.expense_transactions}</div>
                   </div>
                   <div>
-                    <span className="text-gray-400">Vehicle Miles:</span>
-                    <div className="text-white font-medium">{summary.vehicle_miles || 0}</div>
+                    <span className="text-slate-500">Vehicle Miles:</span>
+                    <div className="text-slate-800 font-medium">{summary.vehicle_miles || 0}</div>
                   </div>
                   <div>
-                    <span className="text-gray-400">Home Office Sq Ft:</span>
-                    <div className="text-white font-medium">{summary.home_office_sqft || 0}</div>
+                    <span className="text-slate-500">Home Office Sq Ft:</span>
+                    <div className="text-slate-800 font-medium">{summary.home_office_sqft || 0}</div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500 mt-2">
+                <div className="text-xs text-slate-500 mt-2">
                   Generated on {scheduleData.calculation_date}
                 </div>
               </div>
@@ -2862,13 +2862,13 @@ export function Dashboard() {
   const renderMileage = () => (
     <div className="space-y-6">
       {/* Header Card */}
-      <Card>
+      <Card className={styles.card}>
         <CardHeader>
           <CardTitle 
             style={{
               fontSize: '24px',
               fontWeight: 'bold',
-              color: '#f9fafb',
+              color: '#1e293b',
               margin: '0'
             }}
           >
@@ -2876,7 +2876,7 @@ export function Dashboard() {
           </CardTitle>
           <CardDescription 
             style={{
-              color: '#9ca3af',
+              color: '#64748b',
               fontSize: '14px',
               margin: '8px 0 0 0'
             }}
@@ -2887,13 +2887,13 @@ export function Dashboard() {
       </Card>
 
       {/* Mileage Input Card */}
-      <Card>
+      <Card className={styles.card}>
         <CardHeader>
           <CardTitle 
             style={{
               fontSize: '18px',
               fontWeight: '600',
-              color: '#f9fafb',
+              color: '#1e293b',
               margin: '0 0 16px 0'
             }}
           >
@@ -2907,7 +2907,7 @@ export function Dashboard() {
                 display: 'block',
                 fontSize: '14px',
                 fontWeight: '500',
-                color: '#f3f4f6',
+                color: '#374151',
                 marginBottom: '8px'
               }}
             >
@@ -2919,9 +2919,9 @@ export function Dashboard() {
               value={businessMiles}
               onChange={(e) => setBusinessMiles(e.target.value)}
               style={{
-                backgroundColor: '#374151',
-                border: '1px solid #4b5563',
-                color: '#f9fafb'
+                backgroundColor: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                color: '#1e293b'
               }}
             />
           </div>
@@ -2930,8 +2930,8 @@ export function Dashboard() {
           {businessMiles && parseInt(businessMiles) > 0 && (
             <div 
               style={{
-                backgroundColor: '#1f2937',
-                border: '1px solid #374151',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
                 borderRadius: '8px',
                 padding: '16px',
                 marginBottom: '24px'
@@ -2941,32 +2941,32 @@ export function Dashboard() {
                 style={{
                   fontSize: '16px',
                   fontWeight: '600',
-                  color: '#f9fafb',
+                  color: '#1e293b',
                   marginBottom: '12px'
                 }}
               >
                 Deduction Calculation
               </h4>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#d1d5db' }}>Business Miles:</span>
-                <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(businessMiles).toLocaleString()}</span>
+                <span style={{ color: '#64748b' }}>Business Miles:</span>
+                <span style={{ color: '#1e293b', fontWeight: '500' }}>{parseInt(businessMiles).toLocaleString()}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#d1d5db' }}>IRS Rate (2024):</span>
-                <span style={{ color: '#f9fafb', fontWeight: '500' }}>$0.67 per mile</span>
+                <span style={{ color: '#64748b' }}>IRS Rate (2024):</span>
+                <span style={{ color: '#1e293b', fontWeight: '500' }}>$0.67 per mile</span>
               </div>
               <div 
                 style={{
-                  borderTop: '1px solid #374151',
+                  borderTop: '1px solid #cbd5e1',
                   paddingTop: '8px',
                   display: 'flex',
                   justifyContent: 'space-between'
                 }}
               >
-                <span style={{ color: '#d1d5db', fontWeight: '600' }}>Total Deduction:</span>
+                <span style={{ color: '#475569', fontWeight: '600' }}>Total Deduction:</span>
                 <span 
                   style={{
-                    color: '#10b981',
+                    color: '#059669',
                     fontWeight: '700',
                     fontSize: '18px'
                   }}
@@ -3002,13 +3002,13 @@ export function Dashboard() {
       </Card>
 
       {/* Information Card */}
-      <Card>
+      <Card className={styles.card}>
         <CardHeader>
           <CardTitle 
             style={{
               fontSize: '16px',
               fontWeight: '600',
-              color: '#f9fafb',
+              color: '#1e293b',
               margin: '0 0 12px 0'
             }}
           >
@@ -3018,7 +3018,7 @@ export function Dashboard() {
         <CardContent>
           <ul 
             style={{
-              color: '#d1d5db',
+              color: '#475569',
               fontSize: '14px',
               lineHeight: '1.6',
               listStyle: 'disc',
@@ -3039,13 +3039,13 @@ export function Dashboard() {
   const renderHomeOffice = () => (
     <div className="space-y-6">
       {/* Header Card */}
-      <Card>
+      <Card className={styles.card}>
         <CardHeader>
           <CardTitle 
             style={{
               fontSize: '24px',
               fontWeight: 'bold',
-              color: '#f9fafb',
+              color: '#1e293b',
               margin: '0'
             }}
           >
@@ -3053,7 +3053,7 @@ export function Dashboard() {
           </CardTitle>
           <CardDescription 
             style={{
-              color: '#9ca3af',
+              color: '#64748b',
               fontSize: '14px',
               margin: '8px 0 0 0'
             }}
@@ -3064,13 +3064,13 @@ export function Dashboard() {
       </Card>
 
       {/* Method Selection Card */}
-      <Card>
+      <Card className={styles.card}>
         <CardHeader>
           <CardTitle 
             style={{
               fontSize: '18px',
               fontWeight: '600',
-              color: '#f9fafb',
+              color: '#1e293b',
               margin: '0 0 16px 0'
             }}
           >
@@ -3096,7 +3096,7 @@ export function Dashboard() {
                   accentColor: '#3b82f6'
                 }}
               />
-              <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+              <span style={{ color: '#1e293b', fontWeight: '500' }}>
                 Simplified Method ($5 per square foot, max 300 sq ft)
               </span>
             </label>
@@ -3116,7 +3116,7 @@ export function Dashboard() {
                   accentColor: '#3b82f6'
                 }}
               />
-              <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+              <span style={{ color: '#1e293b', fontWeight: '500' }}>
                 Actual Expense Method (percentage of home expenses)
               </span>
             </label>
@@ -3129,7 +3129,7 @@ export function Dashboard() {
                 display: 'block',
                 fontSize: '14px',
                 fontWeight: '500',
-                color: '#f3f4f6',
+                color: '#374151',
                 marginBottom: '8px'
               }}
             >
@@ -3141,9 +3141,9 @@ export function Dashboard() {
               value={homeOfficeSqft}
               onChange={(e) => setHomeOfficeSqft(e.target.value)}
               style={{
-                backgroundColor: '#374151',
-                border: '1px solid #4b5563',
-                color: '#f9fafb'
+                backgroundColor: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                color: '#1e293b'
               }}
             />
           </div>
@@ -3156,7 +3156,7 @@ export function Dashboard() {
                   display: 'block',
                   fontSize: '14px',
                   fontWeight: '500',
-                  color: '#f3f4f6',
+                  color: '#374151',
                   marginBottom: '8px'
                 }}
               >
@@ -3168,9 +3168,9 @@ export function Dashboard() {
                 value={totalHomeSqft}
                 onChange={(e) => setTotalHomeSqft(e.target.value)}
                 style={{
-                  backgroundColor: '#374151',
-                  border: '1px solid #4b5563',
-                  color: '#f9fafb'
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#1e293b'
                 }}
               />
             </div>
@@ -3180,8 +3180,8 @@ export function Dashboard() {
           {homeOfficeSqft && parseInt(homeOfficeSqft) > 0 && (
             <div 
               style={{
-                backgroundColor: '#1f2937',
-                border: '1px solid #374151',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
                 borderRadius: '8px',
                 padding: '16px',
                 marginBottom: '24px'
@@ -3191,7 +3191,7 @@ export function Dashboard() {
                 style={{
                   fontSize: '16px',
                   fontWeight: '600',
-                  color: '#f9fafb',
+                  color: '#1e293b',
                   marginBottom: '12px'
                 }}
               >
@@ -3201,31 +3201,31 @@ export function Dashboard() {
               {useSimplified ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: '#d1d5db' }}>Home Office Sq Ft:</span>
-                    <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(homeOfficeSqft)}</span>
+                    <span style={{ color: '#64748b' }}>Home Office Sq Ft:</span>
+                    <span style={{ color: '#1e293b', fontWeight: '500' }}>{parseInt(homeOfficeSqft)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: '#d1d5db' }}>Simplified Rate:</span>
-                    <span style={{ color: '#f9fafb', fontWeight: '500' }}>$5 per sq ft</span>
+                    <span style={{ color: '#64748b' }}>Simplified Rate:</span>
+                    <span style={{ color: '#1e293b', fontWeight: '500' }}>$5 per sq ft</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: '#d1d5db' }}>Max Deductible Sq Ft:</span>
-                    <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+                    <span style={{ color: '#64748b' }}>Max Deductible Sq Ft:</span>
+                    <span style={{ color: '#1e293b', fontWeight: '500' }}>
                       {Math.min(parseInt(homeOfficeSqft), 300)} sq ft
                     </span>
                   </div>
                   <div 
                     style={{
-                      borderTop: '1px solid #374151',
+                      borderTop: '1px solid #cbd5e1',
                       paddingTop: '8px',
                       display: 'flex',
                       justifyContent: 'space-between'
                     }}
                   >
-                    <span style={{ color: '#d1d5db', fontWeight: '600' }}>Total Deduction:</span>
+                    <span style={{ color: '#475569', fontWeight: '600' }}>Total Deduction:</span>
                     <span 
                       style={{
-                        color: '#10b981',
+                        color: '#059669',
                         fontWeight: '700',
                         fontSize: '18px'
                       }}
@@ -3239,24 +3239,24 @@ export function Dashboard() {
                   {totalHomeSqft && parseInt(totalHomeSqft) > 0 ? (
                     <>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ color: '#d1d5db' }}>Home Office Sq Ft:</span>
-                        <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(homeOfficeSqft)}</span>
+                        <span style={{ color: '#64748b' }}>Home Office Sq Ft:</span>
+                        <span style={{ color: '#1e293b', fontWeight: '500' }}>{parseInt(homeOfficeSqft)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ color: '#d1d5db' }}>Total Home Sq Ft:</span>
-                        <span style={{ color: '#f9fafb', fontWeight: '500' }}>{parseInt(totalHomeSqft)}</span>
+                        <span style={{ color: '#64748b' }}>Total Home Sq Ft:</span>
+                        <span style={{ color: '#1e293b', fontWeight: '500' }}>{parseInt(totalHomeSqft)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ color: '#d1d5db' }}>Percentage:</span>
-                        <span style={{ color: '#f9fafb', fontWeight: '500' }}>
+                        <span style={{ color: '#64748b' }}>Percentage:</span>
+                        <span style={{ color: '#1e293b', fontWeight: '500' }}>
                           {((parseInt(homeOfficeSqft) / parseInt(totalHomeSqft)) * 100).toFixed(1)}%
                         </span>
                       </div>
                       <div 
                         style={{
-                          borderTop: '1px solid #374151',
+                          borderTop: '1px solid #cbd5e1',
                           paddingTop: '8px',
-                          color: '#d1d5db',
+                          color: '#475569',
                           fontSize: '14px'
                         }}
                       >
@@ -3264,7 +3264,7 @@ export function Dashboard() {
                       </div>
                     </>
                   ) : (
-                    <div style={{ color: '#f59e0b', fontSize: '14px' }}>
+                    <div style={{ color: '#d97706', fontSize: '14px' }}>
                       Please enter total home square footage to calculate the percentage
                     </div>
                   )}
@@ -3298,13 +3298,13 @@ export function Dashboard() {
       </Card>
 
       {/* Information Card */}
-      <Card>
+      <Card className={styles.card}>
         <CardHeader>
           <CardTitle 
             style={{
               fontSize: '16px',
               fontWeight: '600',
-              color: '#f9fafb',
+              color: '#1e293b',
               margin: '0 0 12px 0'
             }}
           >
@@ -3314,7 +3314,7 @@ export function Dashboard() {
         <CardContent>
           <ul 
             style={{
-              color: '#d1d5db',
+              color: '#475569',
               fontSize: '14px',
               lineHeight: '1.6',
               listStyle: 'disc',
@@ -3613,12 +3613,12 @@ export function Dashboard() {
         {/* Privacy Banner - Local Storage Notice */}
         <div className={styles.privacyBanner}>
           <div className="max-w-4xl mx-auto flex items-center justify-center gap-3">
-            <Shield className="h-5 w-5 text-blue-600 flex-shrink-0" />
-            <p className="text-sm text-slate-700 text-center">
-              <span className="font-semibold text-blue-700">🔒 Private Storage:</span> All data stays in your browser locally.{' '}
-              <span className="text-slate-600">Not sent to our servers.</span>{' '}
-              <span className="text-amber-600 font-medium">⚠️ Clearing browser data will delete everything.</span>{' '}
-              <span className="text-xs text-slate-500">(AI features use OpenRouter)</span>
+            <Shield className="h-5 w-5 text-blue-300 flex-shrink-0" />
+            <p className="text-sm text-white text-center">
+              <span className="font-semibold text-blue-200">🔒 Private Storage:</span> All data stays in your browser locally.{' '}
+              <span className="text-gray-200">Not sent to our servers.</span>{' '}
+              <span className="text-amber-300 font-medium">⚠️ Clearing browser data will delete everything.</span>{' '}
+              <span className="text-xs text-gray-300">(AI features use OpenRouter)</span>
             </p>
           </div>
         </div>
