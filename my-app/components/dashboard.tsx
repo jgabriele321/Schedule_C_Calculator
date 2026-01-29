@@ -1032,7 +1032,7 @@ export function Dashboard() {
                 ? "border-blue-500 bg-blue-100"
                 : selectedFiles.length > 0
                   ? "border-green-500 bg-green-100"
-                  : "border-slate-400 bg-slate-100 hover:border-blue-500 hover:bg-blue-100"
+                  : "border-slate-400 bg-slate-200 hover:border-blue-500 hover:bg-blue-100"
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
