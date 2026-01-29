@@ -1083,9 +1083,17 @@ export function Dashboard() {
                   <Cloud className="h-12 w-12 text-slate-400 mx-auto" />
                   <div>
                     <p className="text-lg font-medium text-slate-700">
-                      Drag and drop your CSV files here, or click to browse
+                      Drag and drop your CSV files here
                     </p>
-                    <p className="text-sm text-slate-500">Multiple CSV files supported, max 10MB each</p>
+                    <p className="text-sm text-slate-500 mb-4">Multiple CSV files supported, max 10MB each</p>
+                    <Button
+                      variant="outline"
+                      className="bg-white border-blue-500 text-blue-600 hover:bg-blue-50 font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Browse Files
+                    </Button>
                   </div>
                 </>
               )}
