@@ -2008,7 +2008,7 @@ export function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className={`overflow-x-auto ${styles.desktopTable}`}>
                 <table className="w-full text-sm">
                   <thead className="bg-slate-100">
                     <tr className="border-b border-slate-200">
@@ -2226,7 +2226,7 @@ export function Dashboard() {
 
             {/* Mobile Card View - Only visible on very small screens */}
             {!loading && transactions.length > 0 && (
-              <div className="mobile-transaction-cards">
+              <div className={styles.mobileCards}>
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {transactions.map((transaction: any) => {
                     // Determine color coding for mobile cards

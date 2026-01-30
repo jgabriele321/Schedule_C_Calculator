@@ -1546,3 +1546,436 @@ npm run build
 | Code Duplication | ~3000 lines duplicated | Shared packages |
 
 **Status**: ✅ **ALL 10 RECOMMENDATIONS IMPLEMENTED AND VERIFIED**
+
+---
+
+## 🎨 **UI/UX IMPROVEMENT PLAN - JANUARY 2026**
+
+### **Current State Assessment (Based on Live App Review)**
+
+**Date**: January 24, 2026  
+**Branch**: `upgrade-jan-20-2026` (now merged to main)  
+**Assessment Method**: Live application review at http://localhost:3003
+
+#### **What's Working Well** ✅
+1. **Functional Foundation**: All core features work (upload, categorization, export)
+2. **Dark Theme**: Professional dark gray color scheme with good contrast
+3. **Mobile Responsive**: Has mobile menu and responsive design
+4. **Complete Feature Set**: All IRS Schedule C requirements covered
+5. **Data Persistence**: Backend integration working properly
+
+#### **Critical Visual/UX Issues** ❌
+
+##### **1. Visual Monotony (Biggest Issue)**
+- **Problem**: Everything is gray on gray - no visual hierarchy
+- **Impact**: Users can't quickly identify what's important
+- **Current State**: 
+  - Navigation: Gray buttons on gray sidebar
+  - Cards: Gray cards on gray background
+  - Text: Gray text on gray cards
+- **User Feedback**: "Layout needs to be more visually appealing"
+
+##### **2. Lack of Visual Feedback**
+- **Problem**: No clear indication of progress or completion
+- **Impact**: Users feel lost and uncertain
+- **Missing Elements**:
+  - No progress indicator across tabs
+  - No celebration/success states
+  - No visual cues for "what's next"
+  - Upload success is just text, not visually exciting
+
+##### **3. Information Overload**
+- **Problem**: 7 tabs with equal visual weight
+- **Impact**: Cognitive overload, unclear workflow
+- **Current Navigation**: Upload → Transactions → Recurring → Mileage → Home Office → Overview → Export
+- **Issue**: Overview (most important) is buried as 6th tab
+
+##### **4. Weak Call-to-Actions**
+- **Problem**: Primary actions don't stand out
+- **Impact**: Users don't know what to do next
+- **Examples**:
+  - "Upload and Process CSV" button looks same as other buttons
+  - No prominent "Get Started" or "Next Step" guidance
+  - Delete All button has same visual weight as navigation
+
+##### **5. Dense Data Presentation**
+- **Problem**: Transaction tables are overwhelming
+- **Impact**: Hard to scan and review data quickly
+- **Issues**:
+  - No visual grouping or categorization
+  - All rows look identical
+  - No color coding for business vs personal
+  - No visual indicators for uncategorized items
+
+---
+
+### **🎯 PRIORITIZED IMPROVEMENT ROADMAP**
+
+#### **PHASE 1: Visual Hierarchy & Color System** (Highest Impact)
+**Goal**: Make the interface visually appealing and scannable  
+**Time Estimate**: 2-3 hours  
+**Success Metric**: Users can immediately identify what's important
+
+**Improvements**:
+
+1. **Implement Color-Coded System**
+   - **Business transactions**: Green accent (`bg-green-500/10`, `border-green-500/30`, `text-green-400`)
+   - **Personal transactions**: Gray (current)
+   - **Uncategorized**: Yellow/amber warning (`bg-amber-500/10`, `border-amber-500/30`, `text-amber-400`)
+   - **Income**: Blue accent (`bg-blue-500/10`, `border-blue-500/30`, `text-blue-400`)
+
+2. **Hero Numbers with Visual Impact**
+   - Make key metrics stand out with:
+     - Larger font sizes (text-4xl or text-5xl)
+     - Gradient backgrounds
+     - Animated counters
+     - Color-coded by type (green for business, blue for income)
+   
+3. **Primary Action Buttons**
+   - Make CTAs pop with:
+     - Bright blue/purple gradient backgrounds
+     - Larger size and padding
+     - Hover animations (scale, glow)
+     - Clear contrast from secondary buttons
+
+4. **Card Visual Hierarchy**
+   - Add subtle gradients to important cards
+   - Use border colors to indicate card type
+   - Add icons with color to card headers
+   - Implement hover effects (lift, glow)
+
+**Code Changes**:
+```typescript
+// Example: Transaction row color coding
+<TableRow className={`
+  ${transaction.is_business 
+    ? 'bg-green-500/5 border-l-2 border-green-500 hover:bg-green-500/10' 
+    : 'bg-gray-800/50 hover:bg-gray-700/50'
+  }
+  ${!transaction.category || transaction.category === 'uncategorized'
+    ? 'border-l-2 border-amber-500 bg-amber-500/5'
+    : ''
+  }
+  transition-all duration-200
+`}>
+```
+
+---
+
+#### **PHASE 2: Progress & Guidance System** (High Impact)
+**Goal**: Users always know where they are and what to do next  
+**Time Estimate**: 3-4 hours  
+**Success Metric**: 90%+ users complete workflow without confusion
+
+**Improvements**:
+
+1. **Multi-Step Progress Indicator**
+   - Add progress bar at top showing: Upload → Review → Summary → Export
+   - Highlight current step
+   - Show completion percentage
+   - Make steps clickable to navigate
+
+2. **Smart Next Step Guidance**
+   - After upload: "✅ 234 transactions imported! → Review & Categorize"
+   - During review: "📊 Progress: 45/234 categorized (19%) → Keep going!"
+   - After categorization: "🎉 All done! → View Summary"
+   - Before export: "✓ Ready to export → Download for your accountant"
+
+3. **Empty States with Guidance**
+   - Upload page: Show example CSV format
+   - Transactions page: "Upload CSV files to get started"
+   - Overview page: "Complete categorization to see summary"
+
+4. **Success Celebrations**
+   - Upload complete: Checkmark animation + success message
+   - Categorization complete: Confetti effect
+   - Export complete: Download animation
+
+**Code Changes**:
+```typescript
+// Progress indicator component
+const steps = [
+  { id: 'upload', label: 'Upload', icon: Upload },
+  { id: 'transactions', label: 'Review', icon: Receipt },
+  { id: 'overview', label: 'Summary', icon: BarChart3 },
+  { id: 'export', label: 'Export', icon: Download }
+]
+
+<div className="flex items-center justify-between mb-8">
+  {steps.map((step, index) => (
+    <div key={step.id} className="flex items-center">
+      <div className={`
+        flex items-center justify-center w-10 h-10 rounded-full
+        ${activeTab === step.id 
+          ? 'bg-blue-500 text-white' 
+          : 'bg-gray-700 text-gray-400'
+        }
+      `}>
+        <step.icon className="w-5 h-5" />
+      </div>
+      {index < steps.length - 1 && (
+        <div className="w-24 h-1 bg-gray-700 mx-2" />
+      )}
+    </div>
+  ))}
+</div>
+```
+
+---
+
+#### **PHASE 3: Navigation Restructuring** (Medium Impact)
+**Goal**: Simplify workflow from 7 tabs to 4 main steps  
+**Time Estimate**: 2-3 hours  
+**Success Metric**: Reduced cognitive load, clearer user journey
+
+**Improvements**:
+
+1. **Consolidate Navigation**
+   - **Main Flow** (4 tabs):
+     1. Upload
+     2. Review (combines Transactions + Recurring)
+     3. Summary (Overview + Mileage + Home Office as sections)
+     4. Export
+   
+2. **Make Advanced Features Collapsible**
+   - Mileage: Section within Summary with expand/collapse
+   - Home Office: Section within Summary with expand/collapse
+   - Recurring: Filter/view within Review tab
+
+3. **Visual Tab Redesign**
+   - Current tab: Bright blue background + white text
+   - Completed tabs: Green checkmark icon
+   - Upcoming tabs: Gray with number indicator
+   - Locked tabs: Disabled state until prerequisites met
+
+---
+
+#### **PHASE 4: Data Visualization Improvements** (Medium Impact)
+**Goal**: Make transaction data easier to scan and understand  
+**Time Estimate**: 3-4 hours  
+**Success Metric**: Users can quickly find and categorize transactions
+
+**Improvements**:
+
+1. **Visual Transaction Cards** (Alternative to dense table)
+   - Card-based layout option for mobile/tablet
+   - Show vendor logo/icon
+   - Large, readable amounts
+   - Visual category badges
+   - Swipe actions for mobile
+
+2. **Smart Grouping**
+   - Group by vendor (show "Amazon (12 transactions)")
+   - Group by date range (show "December 2024 (45 transactions)")
+   - Group by category
+   - Collapsible groups with summary totals
+
+3. **Visual Category Indicators**
+   - Color-coded category badges
+   - Icons for common categories (🍔 Meals, ✈️ Travel, 📱 Utilities)
+   - Progress bars showing category totals
+   - Visual warnings for uncategorized
+
+4. **Enhanced Filters**
+   - Visual filter chips (not dropdowns)
+   - Quick filters: "Show only uncategorized", "Show only business"
+   - Date range picker with visual calendar
+   - Amount range slider
+
+---
+
+#### **PHASE 5: Micro-Interactions & Polish** (Lower Impact, High Delight)
+**Goal**: Add delightful details that make the app feel premium  
+**Time Estimate**: 2-3 hours  
+**Success Metric**: Users say "This feels professional"
+
+**Improvements**:
+
+1. **Smooth Animations**
+   - Page transitions: Fade in/out
+   - Card hover: Lift effect with shadow
+   - Button hover: Scale + glow
+   - Loading states: Skeleton screens (not spinners)
+
+2. **Interactive Feedback**
+   - Button clicks: Ripple effect
+   - Toggle switches: Smooth slide animation
+   - Drag and drop: Visual feedback during drag
+   - Success actions: Checkmark animation
+
+3. **Tooltips & Help**
+   - Hover tooltips on all icons
+   - Contextual help bubbles
+   - IRS category explanations
+   - Keyboard shortcut hints
+
+4. **Professional Typography**
+   - Use font weight hierarchy (700 for headings, 500 for subheadings, 400 for body)
+   - Increase line height for readability
+   - Better letter spacing on headings
+   - Consistent sizing scale
+
+---
+
+### **🎨 DESIGN SYSTEM REFERENCE**
+
+#### **Color Palette**
+```css
+/* Primary Actions */
+--blue-primary: #3B82F6;
+--blue-hover: #2563EB;
+--blue-light: rgba(59, 130, 246, 0.1);
+
+/* Success / Business */
+--green-primary: #10B981;
+--green-hover: #059669;
+--green-light: rgba(16, 185, 129, 0.1);
+
+/* Warning / Uncategorized */
+--amber-primary: #F59E0B;
+--amber-hover: #D97706;
+--amber-light: rgba(245, 158, 11, 0.1);
+
+/* Income */
+--blue-secondary: #06B6D4;
+--blue-secondary-hover: #0891B2;
+--blue-secondary-light: rgba(6, 182, 212, 0.1);
+
+/* Neutral / Personal */
+--gray-900: #111827;
+--gray-800: #1F2937;
+--gray-700: #374151;
+--gray-600: #4B5563;
+--gray-400: #9CA3AF;
+--gray-300: #D1D5DB;
+```
+
+#### **Typography Scale**
+```css
+/* Hero Numbers */
+--text-hero: 3rem; /* 48px */
+
+/* Page Titles */
+--text-title: 2rem; /* 32px */
+
+/* Section Headings */
+--text-heading: 1.5rem; /* 24px */
+
+/* Body Text */
+--text-body: 1rem; /* 16px */
+
+/* Small Text */
+--text-small: 0.875rem; /* 14px */
+```
+
+#### **Spacing Scale**
+```css
+/* Consistent spacing */
+--space-xs: 0.25rem; /* 4px */
+--space-sm: 0.5rem; /* 8px */
+--space-md: 1rem; /* 16px */
+--space-lg: 1.5rem; /* 24px */
+--space-xl: 2rem; /* 32px */
+--space-2xl: 3rem; /* 48px */
+```
+
+---
+
+### **📋 IMPLEMENTATION CHECKLIST**
+
+#### **Phase 1: Visual Hierarchy** (Start Here)
+- [ ] Add color coding to transaction rows (green/gray/amber)
+- [ ] Implement hero number styling with gradients
+- [ ] Redesign primary CTA buttons with blue gradient
+- [ ] Add hover effects to all cards
+- [ ] Color-code category badges
+- [ ] Add visual icons to navigation tabs
+
+#### **Phase 2: Progress & Guidance**
+- [ ] Create multi-step progress indicator component
+- [ ] Add "next step" guidance messages
+- [ ] Implement success celebration animations
+- [ ] Create empty state components with guidance
+- [ ] Add progress percentage calculations
+- [ ] Show completion checkmarks
+
+#### **Phase 3: Navigation**
+- [ ] Consolidate 7 tabs into 4 main steps
+- [ ] Move Mileage/Home Office into Summary sections
+- [ ] Combine Transactions + Recurring views
+- [ ] Add visual indicators for completed steps
+- [ ] Implement tab locking until prerequisites met
+
+#### **Phase 4: Data Visualization**
+- [ ] Create card-based transaction view option
+- [ ] Implement smart grouping (by vendor, date, category)
+- [ ] Add visual category icons
+- [ ] Replace dropdowns with visual filter chips
+- [ ] Add quick filter buttons
+- [ ] Implement date range picker
+
+#### **Phase 5: Polish**
+- [ ] Add smooth page transitions
+- [ ] Implement card hover animations
+- [ ] Add button ripple effects
+- [ ] Create skeleton loading states
+- [ ] Add tooltips to all icons
+- [ ] Improve typography hierarchy
+- [ ] Add keyboard shortcuts
+
+---
+
+### **🎯 SUCCESS METRICS**
+
+**Before (Current State)**:
+- Visual Appeal: 6/10
+- User Confidence: 7/10
+- Workflow Clarity: 5/10
+- Professional Feel: 7/10
+
+**After (Target State)**:
+- Visual Appeal: 9/10
+- User Confidence: 9/10
+- Workflow Clarity: 9/10
+- Professional Feel: 9/10
+
+**User Feedback Goals**:
+- "This looks professional enough to show my accountant" ✅
+- "I knew exactly what to do at each step" ✅
+- "This was way easier than using spreadsheets" ✅
+- "The interface is actually pleasant to use" ✅
+
+---
+
+### **🚀 RECOMMENDED APPROACH**
+
+**Option A: Incremental (Recommended)**
+- Implement Phase 1 first (visual hierarchy)
+- Test with user feedback
+- Iterate to Phase 2, then 3, etc.
+- Allows for course correction
+
+**Option B: Complete Redesign**
+- Implement all phases at once
+- Bigger risk but faster completion
+- Requires more upfront planning
+
+**My Recommendation**: Start with **Phase 1** (Visual Hierarchy) as it has the highest impact and lowest risk. This addresses the main complaint ("needs to be more visually appealing") and can be done in 2-3 hours. Once that's complete and tested, move to Phase 2 (Progress & Guidance).
+
+---
+
+### **📸 SCREENSHOTS & MOCKUPS**
+
+**Current State Captured**:
+- ✅ Upload page screenshot saved: `01-upload-page.png`
+- Navigation: 7 tabs in sidebar (Upload, Transactions, Recurring, Mileage, Home Office, Overview, Export)
+- Color scheme: Dark gray theme with minimal color variation
+- Layout: Sidebar navigation + main content area
+
+**Next Steps for Visual Design**:
+1. User to provide screenshots of specific problem areas
+2. Create mockups of proposed improvements
+3. Get user approval before implementation
+4. Implement approved changes incrementally
+
+---

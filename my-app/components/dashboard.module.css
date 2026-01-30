@@ -283,3 +283,23 @@
     padding: 16px 12px;
   }
 }
+
+/* Desktop table view - visible on screens wider than 640px */
+.desktopTable {
+  display: block;
+}
+
+/* Mobile card view - hidden on screens wider than 640px */
+.mobileCards {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .desktopTable {
+    display: none;
+  }
+  
+  .mobileCards {
+    display: block;
+  }
+}
