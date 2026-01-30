@@ -1807,32 +1807,32 @@ export function Dashboard() {
     return (
       <div className="space-y-6">
         {/* Filters and Search */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className={styles.card}>
           <CardHeader>
-            <CardTitle className="text-gray-100">Filters</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardTitle className="text-slate-800">Filters</CardTitle>
+            <CardDescription className="text-slate-500">
               Filter and search your transactions
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-4">
               <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">Search</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Search</label>
                 <input
                   type="text"
                   placeholder="Search transactions..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">Card</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Card</label>
                 <select
                   value={selectedCard}
                   onChange={(e) => setSelectedCard(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Cards</option>
                   {uniqueCards.map((card) => (
@@ -1842,11 +1842,11 @@ export function Dashboard() {
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">Type</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Type</label>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Types</option>
                   <option value="expense">Expenses</option>
@@ -1858,10 +1858,10 @@ export function Dashboard() {
         </Card>
 
         {/* Bulk Actions */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className={styles.card}>
           <CardHeader>
-            <CardTitle className="text-gray-100">Bulk Actions</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardTitle className="text-slate-800">Bulk Actions</CardTitle>
+            <CardDescription className="text-slate-500">
               ✅ Checked = Business • ⬜ Unchecked = Personal
             </CardDescription>
           </CardHeader>
@@ -1873,9 +1873,9 @@ export function Dashboard() {
                     checked={allBusinessSelected}
                     onCheckedChange={handleToggleAllBusiness}
                     disabled={toggleLoading === "all"}
-                    className="bg-gray-700 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                    className="bg-white border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                   />
-                  <span className="text-sm font-medium text-gray-300">
+                  <span className="text-sm font-medium text-slate-700">
                     Mark All Database as Business
                   </span>
                 </div>
@@ -1952,40 +1952,40 @@ export function Dashboard() {
         </Card>
 
         {/* Enhanced Transactions Table - Card-like Layout */}
-        <Card className="bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900 border-gray-600 shadow-xl">
-          <CardHeader className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-t-lg">
+        <Card className={styles.card}>
+          <CardHeader className="bg-slate-100 rounded-t-lg border-b border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-bold text-gray-100 flex items-center space-x-2">
-                  <Receipt className="h-5 w-5 text-blue-400" />
+                <CardTitle className="text-xl font-bold text-slate-800 flex items-center space-x-2">
+                  <Receipt className="h-5 w-5 text-blue-600" />
                   <span>Transaction Review</span>
                 </CardTitle>
-                <CardDescription className="text-gray-300 mt-1">
+                <CardDescription className="text-slate-600 mt-1">
                   Page {currentPage} of {Math.ceil(totalTransactions / pageSize)} • {totalTransactions} total transactions
                 </CardDescription>
               </div>
               {businessSummary && (
                 <div className="text-right">
-                  <div className="text-sm text-gray-300">Categorization Progress</div>
-                  <div className="text-lg font-semibold text-green-400 flex items-center space-x-2">
+                  <div className="text-sm text-slate-600">Categorization Progress</div>
+                  <div className="text-lg font-semibold text-green-600 flex items-center space-x-2">
                     <span>{businessSummary.business_transactions} business selected</span>
                     {businessSummary.business_transactions > 0 && (
-                      <div className="text-green-400 animate-pulse">
+                      <div className="text-green-600 animate-pulse">
                         ✓
                       </div>
                     )}
                   </div>
                   {/* Progress Bar */}
                   <div className="mt-2 w-32">
-                    <div className="bg-gray-600 rounded-full h-2 overflow-hidden">
+                    <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
+                        className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-500 ease-out"
                         style={{ 
                           width: `${Math.min(100, (businessSummary.business_transactions / businessSummary.total_transactions) * 100)}%` 
                         }}
                       />
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
+                    <div className="text-xs text-slate-500 mt-1">
                       {Math.round((businessSummary.business_transactions / businessSummary.total_transactions) * 100)}% categorized
                     </div>
                   </div>
@@ -1996,24 +1996,24 @@ export function Dashboard() {
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center h-32">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                <span className="ml-2 text-gray-400">Loading transactions...</span>
+                <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+                <span className="ml-2 text-slate-500">Loading transactions...</span>
               </div>
             ) : transactions.length === 0 ? (
               <div className="flex items-center justify-center h-32">
                 <div className="text-center">
-                  <Receipt className="h-8 w-8 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-400 font-medium">No transactions found</p>
-                  <p className="text-gray-500 text-sm">Try adjusting your filters or upload more data</p>
+                  <Receipt className="h-8 w-8 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600 font-medium">No transactions found</p>
+                  <p className="text-slate-500 text-sm">Try adjusting your filters or upload more data</p>
                 </div>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-700/50">
-                    <tr className="border-b border-gray-600">
+                  <thead className="bg-slate-100">
+                    <tr className="border-b border-slate-200">
                       <th 
-                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-slate-700 font-semibold cursor-pointer hover:text-slate-900 transition-colors"
                         onClick={() => handleSort("date")}
                       >
                         <div className="flex items-center space-x-1">
@@ -2021,16 +2021,16 @@ export function Dashboard() {
                           {sortBy === "date" && (
                             <div className="flex flex-col">
                               {sortOrder === "asc" ? (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-600"></div>
                               ) : (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-600"></div>
                               )}
                             </div>
                           )}
                         </div>
                       </th>
                       <th 
-                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-slate-700 font-semibold cursor-pointer hover:text-slate-900 transition-colors"
                         onClick={() => handleSort("vendor")}
                       >
                         <div className="flex items-center space-x-1">
@@ -2038,16 +2038,16 @@ export function Dashboard() {
                           {sortBy === "vendor" && (
                             <div className="flex flex-col">
                               {sortOrder === "asc" ? (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-600"></div>
                               ) : (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-600"></div>
                               )}
                             </div>
                           )}
                         </div>
                       </th>
                       <th 
-                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-slate-700 font-semibold cursor-pointer hover:text-slate-900 transition-colors"
                         onClick={() => handleSort("amount")}
                       >
                         <div className="flex items-center space-x-1">
@@ -2055,16 +2055,16 @@ export function Dashboard() {
                           {sortBy === "amount" && (
                             <div className="flex flex-col">
                               {sortOrder === "asc" ? (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-600"></div>
                               ) : (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-600"></div>
                               )}
                             </div>
                           )}
                         </div>
                       </th>
                       <th 
-                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-slate-700 font-semibold cursor-pointer hover:text-slate-900 transition-colors"
                         onClick={() => handleSort("category")}
                       >
                         <div className="flex items-center space-x-1">
@@ -2072,16 +2072,16 @@ export function Dashboard() {
                           {sortBy === "category" && (
                             <div className="flex flex-col">
                               {sortOrder === "asc" ? (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-600"></div>
                               ) : (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-600"></div>
                               )}
                             </div>
                           )}
                         </div>
                       </th>
                       <th 
-                        className="text-left py-4 px-4 text-gray-300 font-semibold cursor-pointer hover:text-white transition-colors"
+                        className="text-left py-4 px-4 text-slate-700 font-semibold cursor-pointer hover:text-slate-900 transition-colors"
                         onClick={() => handleSort("business")}
                       >
                         <div className="flex items-center space-x-1">
@@ -2089,9 +2089,9 @@ export function Dashboard() {
                           {sortBy === "business" && (
                             <div className="flex flex-col">
                               {sortOrder === "asc" ? (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-b-2 border-transparent border-b-blue-600"></div>
                               ) : (
-                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-400"></div>
+                                <div className="w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-blue-600"></div>
                               )}
                             </div>
                           )}
@@ -2109,27 +2109,27 @@ export function Dashboard() {
                       // Priority: Uncategorized > Business > Personal
                       if (!transaction.category || transaction.category === 'uncategorized') {
                         // Amber warning for transactions needing attention
-                        rowColorClass = "bg-amber-500/10 hover:bg-amber-500/20"
+                        rowColorClass = "bg-amber-50 hover:bg-amber-100"
                         borderColorClass = "border-l-4 border-l-amber-500"
                         dotColorClass = "bg-amber-400 shadow-amber-400/50"
                       } else if (transaction.is_business) {
                         // Green for business transactions
-                        rowColorClass = "bg-green-500/10 hover:bg-green-500/15"
+                        rowColorClass = "bg-green-50 hover:bg-green-100"
                         borderColorClass = "border-l-4 border-l-green-500"
                         dotColorClass = "bg-green-400 shadow-green-400/50"
                       } else {
                         // Gray for personal transactions  
-                        rowColorClass = "bg-gray-800/30 hover:bg-gray-700/40"
-                        borderColorClass = "border-l-4 border-l-gray-600"
-                        dotColorClass = "bg-gray-400 shadow-gray-400/30"
+                        rowColorClass = "bg-slate-50 hover:bg-slate-100"
+                        borderColorClass = "border-l-4 border-l-slate-400"
+                        dotColorClass = "bg-slate-400 shadow-slate-400/30"
                       }
                       
                       return (
-                        <tr key={transaction.id} className={`border-b border-gray-700/30 transition-all duration-200 ${rowColorClass} ${borderColorClass}`}>
-                          <td className="py-4 px-4 text-gray-300 font-medium">
+                        <tr key={transaction.id} className={`border-b border-slate-200 transition-all duration-200 ${rowColorClass} ${borderColorClass}`}>
+                          <td className="py-4 px-4 text-slate-600 font-medium">
                             {new Date(transaction.date).toLocaleDateString()}
                           </td>
-                          <td className="py-4 px-4 text-gray-100 max-w-[200px]">
+                          <td className="py-4 px-4 text-slate-800 max-w-[200px]">
                             <div className="flex items-center space-x-3">
                               {/* Enhanced color-coded dot indicator */}
                               <div 
@@ -2138,7 +2138,7 @@ export function Dashboard() {
                               <span className="font-medium truncate">{transaction.vendor || transaction.description || 'Unknown'}</span>
                             </div>
                           </td>
-                          <td className={`py-4 px-4 font-bold text-base ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                          <td className={`py-4 px-4 font-bold text-base ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                             {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
                           </td>
                         <td className="py-4 px-4">
@@ -2154,11 +2154,11 @@ export function Dashboard() {
                                 }}
                                 disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
                               >
-                                <SelectTrigger className={`w-full h-8 text-xs bg-gray-700 border-gray-600 text-white ${
+                                <SelectTrigger className={`w-full h-8 text-xs bg-white border-slate-300 text-slate-800 ${
                                   transaction.category && transaction.category !== 'uncategorized' 
-                                    ? 'border-green-600 bg-green-900/20' 
+                                    ? 'border-green-500 bg-green-50' 
                                     : autoCategorizingTransactions.has(transaction.id) 
-                                      ? 'border-blue-600 bg-blue-900/20' 
+                                      ? 'border-blue-500 bg-blue-50' 
                                       : ''
                                 }`}>
                                   <SelectValue placeholder={
@@ -2174,16 +2174,16 @@ export function Dashboard() {
                                     )}
                                   </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent className="bg-gray-700 border-gray-600">
+                                <SelectContent className="bg-white border-slate-200">
                                   {irsCategories.length === 0 && (
-                                    <SelectItem value="loading" disabled className="text-gray-400">
+                                    <SelectItem value="loading" disabled className="text-slate-400">
                                       Loading categories...
                                     </SelectItem>
                                   )}
                                   {irsCategories.map((category) => {
                                     const { emoji, color } = getCategoryIcon(category.value)
                                     return (
-                                      <SelectItem key={category.id} value={category.value} className="text-white hover:bg-gray-600">
+                                      <SelectItem key={category.id} value={category.value} className="text-slate-800 hover:bg-slate-100">
                                         <span className="flex items-center space-x-2">
                                           <span>{emoji}</span>
                                           <span>{category.name} (L{category.schedule_c_line})</span>
@@ -2209,9 +2209,9 @@ export function Dashboard() {
                               checked={transaction.is_business}
                               onCheckedChange={(checked) => handleToggleBusiness(transaction.id, !!checked)}
                               disabled={toggleLoading === transaction.id}
-                              className="bg-gray-700 border-gray-600 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 w-5 h-5"
+                              className="bg-white border-slate-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 w-5 h-5"
                             />
-                            <span className={`text-sm font-semibold ${transaction.is_business ? 'text-green-400' : 'text-gray-400'}`}>
+                            <span className={`text-sm font-semibold ${transaction.is_business ? 'text-green-600' : 'text-slate-500'}`}>
                               {transaction.is_business ? 'Business' : 'Personal'}
                             </span>
                           </div>
@@ -2235,13 +2235,13 @@ export function Dashboard() {
                     
                     if (transaction.is_business) {
                       cardBorderColor = "#10b981"
-                      cardBgColor = "rgba(16, 185, 129, 0.1)"
+                      cardBgColor = "#ecfdf5" // green-50
                     } else if (!transaction.category || transaction.category === 'uncategorized') {
                       cardBorderColor = "#f59e0b"
-                      cardBgColor = "rgba(245, 158, 11, 0.1)"
+                      cardBgColor = "#fffbeb" // amber-50
                     } else {
-                      cardBorderColor = "#6b7280"
-                      cardBgColor = "rgba(107, 114, 128, 0.1)"
+                      cardBorderColor = "#94a3b8"
+                      cardBgColor = "#f8fafc" // slate-50
                     }
                     
                     return (
@@ -2264,7 +2264,7 @@ export function Dashboard() {
                             <div style={{ 
                               fontSize: '16px', 
                               fontWeight: 'bold', 
-                              color: '#f3f4f6',
+                              color: '#1e293b',
                               marginBottom: '4px',
                               lineHeight: '1.2'
                             }}>
@@ -2272,7 +2272,7 @@ export function Dashboard() {
                             </div>
                             <div style={{ 
                               fontSize: '14px', 
-                              color: '#d1d5db' 
+                              color: '#64748b' 
                             }}>
                               {new Date(transaction.date).toLocaleDateString()}
                             </div>
@@ -2280,7 +2280,7 @@ export function Dashboard() {
                           <div style={{
                             fontSize: '18px',
                             fontWeight: 'bold',
-                            color: transaction.type === 'income' ? '#10b981' : '#ef4444',
+                            color: transaction.type === 'income' ? '#059669' : '#dc2626',
                             textAlign: 'right'
                           }}>
                             {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
@@ -2293,12 +2293,12 @@ export function Dashboard() {
                           alignItems: 'center', 
                           justifyContent: 'space-between',
                           padding: '12px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                          backgroundColor: '#f1f5f9',
                           borderRadius: '8px'
                         }}>
                           <span style={{ 
                             fontSize: '14px', 
-                            color: '#d1d5db',
+                            color: '#475569',
                             fontWeight: '500'
                           }}>
                             Business Expense:
@@ -2323,7 +2323,7 @@ export function Dashboard() {
                             <span style={{
                               fontSize: '14px',
                               fontWeight: 'bold',
-                              color: transaction.is_business ? '#10b981' : '#9ca3af'
+                              color: transaction.is_business ? '#059669' : '#64748b'
                             }}>
                               {transaction.is_business ? 'Yes' : 'No'}
                             </span>
@@ -2338,7 +2338,7 @@ export function Dashboard() {
                         }}>
                           <span style={{ 
                             fontSize: '14px', 
-                            color: '#d1d5db',
+                            color: '#475569',
                             fontWeight: '500'
                           }}>
                             Category:
@@ -2354,10 +2354,10 @@ export function Dashboard() {
                             disabled={toggleLoading === `category-${transaction.id}` || autoCategorizingTransactions.has(transaction.id)}
                             style={{
                               padding: '12px',
-                              backgroundColor: '#374151',
-                              border: '1px solid #6b7280',
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #cbd5e1',
                               borderRadius: '8px',
-                              color: '#f3f4f6',
+                              color: '#1e293b',
                               fontSize: '14px',
                               minHeight: '44px'
                             }}
@@ -2385,10 +2385,10 @@ export function Dashboard() {
 
         {/* Pagination */}
         {totalTransactions > pageSize && (
-          <Card className="bg-gray-800 border-gray-700">
+          <Card className={styles.card}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-400">
+                <div className="text-sm text-slate-600">
                   Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalTransactions)} of {totalTransactions} transactions
                 </div>
                 
@@ -2398,13 +2398,13 @@ export function Dashboard() {
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1 || loading}
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-100"
                   >
                     <ArrowUp className="h-4 w-4 mr-1 rotate-[-90deg]" />
                     Previous
                   </Button>
                   
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-slate-600">
                     Page {currentPage} of {Math.ceil(totalTransactions / pageSize)}
                   </span>
                   
@@ -2413,7 +2413,7 @@ export function Dashboard() {
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalTransactions / pageSize), prev + 1))}
                     disabled={currentPage >= Math.ceil(totalTransactions / pageSize) || loading}
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-100"
                   >
                     Next
                     <ArrowDown className="h-4 w-4 ml-1 rotate-[-90deg]" />
